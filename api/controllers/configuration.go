@@ -2,11 +2,11 @@ package controllers
 
 import (
 	"fmt"
-	"github.com/herbal828/ci_cd-api/api/models"
-	"github.com/herbal828/ci_cd-api/api/services"
-	"github.com/herbal828/ci_cd-api/api/services/storage"
-	"github.com/herbal828/ci_cd-api/api/utils"
-	"github.com/herbal828/ci_cd-api/api/utils/apierrors"
+	"github.com/hbalmes/ci_cd-api/api/models"
+	"github.com/hbalmes/ci_cd-api/api/services"
+	"github.com/hbalmes/ci_cd-api/api/services/storage"
+	"github.com/hbalmes/ci_cd-api/api/utils"
+	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"net/http"
 
 	"github.com/jinzhu/gorm"

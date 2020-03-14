@@ -8,8 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/herbal828/ci_cd-api/api/configs"
-	"github.com/herbal828/ci_cd-api/api/models"
+	"github.com/hbalmes/ci_cd-api/api/configs"
+	"github.com/hbalmes/ci_cd-api/api/models"
+	"github.com/hbalmes/ci_cd-api/api/models/webhook"
 	"github.com/mercadolibre/golang-restclient/rest"
 	"net/http"
 	"time"
@@ -20,6 +21,7 @@ type GithubClient interface {
 	CreateGithubRef(config *models.Configuration, branchConfig *models.Branch, workflowConfig *models.WorkflowConfig) error
 	ProtectBranch(config *models.Configuration, branchConfig *models.Branch) error
 	SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) error
+	CreateStatus(config *models.Configuration, statusWH *webhook.Status) error
 }
 
 type githubClient struct {
@@ -193,6 +195,35 @@ func (c *githubClient) SetDefaultBranch(config *models.Configuration, workflowCo
 
 	if response.StatusCode() != http.StatusOK && response.StatusCode() != http.StatusCreated {
 		return errors.New(fmt.Sprintf("error updating default branch - status: %d", response.StatusCode()))
+	}
+
+	return nil
+}
+
+//CreateStatus create commit statuses for a given SHA.
+//This perform a POST request
+func (c *githubClient) CreateStatus(config *models.Configuration, statusWH *webhook.Status) error {
+
+	if statusWH.Name == "" || config.RepositoryOwner == nil || config.RepositoryName == nil || statusWH.Sha == ""  || statusWH.Context == ""{
+		err := errors.New("invalid body params")
+		return err
+	}
+
+	body := map[string]interface{}{
+		"state": statusWH.State,
+		"target_url": statusWH.TargetURL,
+		"description": statusWH.Description,
+		"context": statusWH.Context,
+	}
+
+	response := c.Client.Post(fmt.Sprintf("repos/%s/%s/statuses/%s", *config.RepositoryOwner, *config.RepositoryName, statusWH.Sha), body)
+
+	if response.Err() != nil {
+		return response.Err()
+	}
+
+	if response.StatusCode() != http.StatusOK && response.StatusCode() != http.StatusCreated {
+		return errors.New(fmt.Sprintf("error creating a status - status: %d", response.StatusCode()))
 	}
 
 	return nil

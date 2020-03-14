@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/gin-gonic/gin"
-	"github.com/herbal828/ci_cd-api/api/clients"
-	"github.com/herbal828/ci_cd-api/api/models"
-	"github.com/herbal828/ci_cd-api/api/models/webhook"
-	"github.com/herbal828/ci_cd-api/api/services/storage"
-	"github.com/herbal828/ci_cd-api/api/utils"
-	"github.com/herbal828/ci_cd-api/api/utils/apierrors"
+	"github.com/hbalmes/ci_cd-api/api/clients"
+	"github.com/hbalmes/ci_cd-api/api/models"
+	"github.com/hbalmes/ci_cd-api/api/models/webhook"
+	"github.com/hbalmes/ci_cd-api/api/services/storage"
+	"github.com/hbalmes/ci_cd-api/api/utils"
+	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/jinzhu/gorm"
 	"io/ioutil"
 )
@@ -65,7 +65,7 @@ func (s *Webhook) CreateWebhook(ctx *gin.Context, webhookEvent string) (*webhook
 	//Validates that the repository has a ci cd configuration
 	if err := s.SQL.GetBy(&config, "id = ?", *repository); err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, apierrors.NewNotFoundApiError("repository dosn't have a ci-cd configuration")
+			return nil, apierrors.NewNotFoundApiError("repository dons't have a ci-cd configuration")
 		} else {
 			return nil, apierrors.NewInternalServerApiError("error checking configuration existence", err)
 		}
@@ -109,7 +109,7 @@ func (s *Webhook) ProcessStatusWebhook(ctx utils.HTTPContext, conf *models.Confi
 		return nil, apierrors.NewBadRequestApiError("invalid status webhook payload")
 	}
 
-	contextAllowed := utils.Contains(conf.RepositoryStatusChecks, statusWH.Context)
+	contextAllowed := utils.ContainsStatusChecks(conf.RepositoryStatusChecks, statusWH.Context)
 	if !contextAllowed {
 		return nil, apierrors.NewBadRequestApiError("Context not configured for the repository")
 	}
@@ -172,11 +172,11 @@ func (s *Webhook) ProcessPullRequestWebhook(ctx utils.HTTPContext) (*webhook.Web
 
 		switch pullRequestWH.Action {
 		case "opened":
-			wh, err := s.ProcessStatusWebhook(ctx, &config)
-			if err != nil {
+			//wh, err := s.ProcessStatusWebhook(ctx, &config)
+			/*if err != nil {
 				return nil, err
 			}
-			return wh, nil
+			return wh, nil*/
 		case "pull_request_review":
 		case "issue_comment":
 		case "pull_request":

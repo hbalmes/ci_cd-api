@@ -1,8 +1,8 @@
 package routers
 
 import (
-	"github.com/herbal828/ci_cd-api/api/controllers"
-	"github.com/herbal828/ci_cd-api/api/services/storage"
+	"github.com/hbalmes/ci_cd-api/api/controllers"
+	"github.com/hbalmes/ci_cd-api/api/services/storage"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

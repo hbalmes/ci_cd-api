@@ -1,4 +1,4 @@
-module github.com/herbal828/ci_cd-api
+module github.com/hbalmes/ci_cd-api
 
 go 1.12
 

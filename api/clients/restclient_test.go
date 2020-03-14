@@ -2,7 +2,7 @@ package clients
 
 import (
 	"errors"
-	"github.com/herbal828/ci_cd-api/api/utils"
+	"github.com/hbalmes/ci_cd-api/api/utils"
 	"reflect"
 	"testing"
 

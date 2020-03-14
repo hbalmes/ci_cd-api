@@ -9,6 +9,7 @@ type Status struct {
 	Context     string    `json:"context"`
 	Description string    `json:"description"`
 	State       string    `json:"state"`
+	TargetURL   string    `json:"target_url"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	Repository  struct {

@@ -1,6 +1,6 @@
 package configs
 
-import "github.com/herbal828/ci_cd-api/api/models"
+import "github.com/hbalmes/ci_cd-api/api/models"
 
 func GetWorkflowConfiguration(configuration *models.Configuration) *models.WorkflowConfig {
 	var workflowConfig models.WorkflowConfig
@@ -28,7 +28,7 @@ func GetGitflowConfig(configuration *models.Configuration) *models.WorkflowConfi
 	masterWorkflowRequiredStatusChecks.Contexts = GetRequiredStatusCheck(configuration)
 
 	masterRequirements.EnforceAdmins = true
-	masterRequirements.AcceptPrFrom = []string{"release", "hotfix"}
+	masterRequirements.AcceptPrFrom = []string{"release/", "hotfix/"}
 	masterRequirements.RequiredStatusChecks = masterWorkflowRequiredStatusChecks
 
 	masterBranchConfig := models.Branch{
@@ -49,10 +49,31 @@ func GetGitflowConfig(configuration *models.Configuration) *models.WorkflowConfi
 	developWorkflowRequiredStatusChecks.Contexts = GetRequiredStatusCheck(configuration)
 
 	developRequirements.EnforceAdmins = true
-	developRequirements.AcceptPrFrom = []string{"feature", "fix", "enhancement", "bugfix"}
+	developRequirements.AcceptPrFrom = []string{"feature/", "fix/", "enhancement/", "bugfix/"}
 	developRequirements.RequiredStatusChecks = developWorkflowRequiredStatusChecks
 
 	developBranchConfig := models.Branch{
+		Requirements: developRequirements,
+		Stable:       true,
+		Name:         "develop",
+		Releasable:   false,
+		StartWith:    false,
+	}
+
+	//Release Branch
+
+	var releaseRequirements models.Requirements
+	var releaseWorkflowRequiredStatusChecks models.RequiredStatusChecks
+
+	releaseWorkflowRequiredStatusChecks.IncludeAdmins = true
+	releaseWorkflowRequiredStatusChecks.Strict = true
+	releaseWorkflowRequiredStatusChecks.Contexts = GetRequiredStatusCheck(configuration)
+
+	releaseRequirements.EnforceAdmins = true
+	releaseRequirements.AcceptPrFrom = []string{"bugfix/", "hotfix/"}
+	releaseRequirements.RequiredStatusChecks = releaseWorkflowRequiredStatusChecks
+
+	releaseBranchConfig := models.Branch{
 		Requirements: developRequirements,
 		Stable:       true,
 		Name:         "develop",
@@ -69,6 +90,7 @@ func GetGitflowConfig(configuration *models.Configuration) *models.WorkflowConfi
 			Branches: []models.Branch{
 				masterBranchConfig,
 				developBranchConfig,
+				releaseBranchConfig,
 			},
 		},
 		Detail: "Workflow Description",

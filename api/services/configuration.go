@@ -2,9 +2,9 @@ package services
 
 import (
 	"errors"
-	"github.com/herbal828/ci_cd-api/api/clients"
-	"github.com/herbal828/ci_cd-api/api/models"
-	"github.com/herbal828/ci_cd-api/api/services/storage"
+	"github.com/hbalmes/ci_cd-api/api/clients"
+	"github.com/hbalmes/ci_cd-api/api/models"
+	"github.com/hbalmes/ci_cd-api/api/services/storage"
 	"github.com/jinzhu/gorm"
 )
 

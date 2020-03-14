@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/herbal828/ci_cd-api/api/controllers/routers"
-	"github.com/herbal828/ci_cd-api/api/models"
-	"github.com/herbal828/ci_cd-api/api/models/webhook"
-	"github.com/herbal828/ci_cd-api/api/services/storage"
+	"github.com/hbalmes/ci_cd-api/api/controllers/routers"
+	"github.com/hbalmes/ci_cd-api/api/models"
+	"github.com/hbalmes/ci_cd-api/api/models/webhook"
+	"github.com/hbalmes/ci_cd-api/api/services/storage"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 
