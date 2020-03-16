@@ -11,6 +11,7 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/configs"
 	"github.com/hbalmes/ci_cd-api/api/models"
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
+	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/mercadolibre/golang-restclient/rest"
 	"net/http"
 	"time"
@@ -21,7 +22,7 @@ type GithubClient interface {
 	CreateGithubRef(config *models.Configuration, branchConfig *models.Branch, workflowConfig *models.WorkflowConfig) error
 	ProtectBranch(config *models.Configuration, branchConfig *models.Branch) error
 	SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) error
-	CreateStatus(config *models.Configuration, statusWH *webhook.Status) error
+	CreateStatus(config *models.Configuration, statusWH *webhook.Status) apierrors.ApiError
 }
 
 type githubClient struct {
@@ -31,7 +32,7 @@ type githubClient struct {
 func NewGithubClient() GithubClient {
 	hs := make(http.Header)
 	hs.Set("cache-control", "no-cache")
-	hs.Set("Authorization", "token <<TOKEN>>")
+	hs.Set("Authorization", "token 1a0b3d127e1d648373ecac9e6e327d0d5070d8cf")
 	hs.Set("Accept", "application/vnd.github.luke-cage-preview+json")
 
 	return &githubClient{
@@ -202,28 +203,27 @@ func (c *githubClient) SetDefaultBranch(config *models.Configuration, workflowCo
 
 //CreateStatus create commit statuses for a given SHA.
 //This perform a POST request
-func (c *githubClient) CreateStatus(config *models.Configuration, statusWH *webhook.Status) error {
+func (c *githubClient) CreateStatus(config *models.Configuration, statusWH *webhook.Status) apierrors.ApiError {
 
-	if statusWH.Name == "" || config.RepositoryOwner == nil || config.RepositoryName == nil || statusWH.Sha == ""  || statusWH.Context == ""{
-		err := errors.New("invalid body params")
-		return err
+	if statusWH.Name == "" || config.RepositoryOwner == nil || config.RepositoryName == nil || statusWH.Sha == "" || statusWH.Context == "" {
+		return apierrors.NewBadRequestApiError("invalid body params")
 	}
 
 	body := map[string]interface{}{
-		"state": statusWH.State,
-		"target_url": statusWH.TargetURL,
+		"state":       statusWH.State,
+		"target_url":  statusWH.TargetURL,
 		"description": statusWH.Description,
-		"context": statusWH.Context,
+		"context":     statusWH.Context,
 	}
 
 	response := c.Client.Post(fmt.Sprintf("repos/%s/%s/statuses/%s", *config.RepositoryOwner, *config.RepositoryName, statusWH.Sha), body)
 
 	if response.Err() != nil {
-		return response.Err()
+		return apierrors.NewInternalServerApiError("RestClient Error creating new status", response.Err())
 	}
 
 	if response.StatusCode() != http.StatusOK && response.StatusCode() != http.StatusCreated {
-		return errors.New(fmt.Sprintf("error creating a status - status: %d", response.StatusCode()))
+		return apierrors.NewInternalServerApiError("Error creating new status", response.Err())
 	}
 
 	return nil

@@ -17,7 +17,7 @@ import (
 type WebhookService interface {
 	CreateWebhook(ctx *gin.Context, webhookEvent string) (*webhook.Webhook, apierrors.ApiError)
 	ProcessStatusWebhook(ctx utils.HTTPContext, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
-	ProcessPullRequestWebhook(ctx utils.HTTPContext) (*webhook.Webhook, apierrors.ApiError)
+	ProcessPullRequestWebhook(ctx utils.HTTPContext, config *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
 	SavePullRequestWebhook(pullRequestWH webhook.PullRequestWebhook) apierrors.ApiError
 }
 
@@ -87,7 +87,7 @@ func (s *Webhook) CreateWebhook(ctx *gin.Context, webhookEvent string) (*webhook
 	case "pull_request_review":
 	case "issue_comment":
 	case "pull_request":
-		wh, err := s.ProcessPullRequestWebhook(ctx)
+		wh, err := s.ProcessPullRequestWebhook(ctx, &config)
 		if err != nil {
 			return nil, err
 		}
@@ -152,11 +152,12 @@ func (s *Webhook) ProcessStatusWebhook(ctx utils.HTTPContext, conf *models.Confi
 }
 
 //ProcessPullRequestWebhook process
-func (s *Webhook) ProcessPullRequestWebhook(ctx utils.HTTPContext) (*webhook.Webhook, apierrors.ApiError) {
+func (s *Webhook) ProcessPullRequestWebhook(ctx utils.HTTPContext, config *models.Configuration) (*webhook.Webhook, apierrors.ApiError) {
 
 	var pullRequestWH webhook.PullRequestWebhook
 	var prWH webhook.PullRequest
 	var wh webhook.Webhook
+	var cf Configuration
 
 	if err := ctx.BindJSON(&pullRequestWH); err != nil {
 		return nil, apierrors.NewBadRequestApiError("invalid pull_request webhook payload")
@@ -172,20 +173,18 @@ func (s *Webhook) ProcessPullRequestWebhook(ctx utils.HTTPContext) (*webhook.Web
 
 		switch pullRequestWH.Action {
 		case "opened":
-			//wh, err := s.ProcessStatusWebhook(ctx, &config)
-			/*if err != nil {
-				return nil, err
+			statusWH, whCheckErr := cf.CheckWorkflow(config, &pullRequestWH)
+
+			if whCheckErr != nil {
+				return nil, whCheckErr
 			}
-			return wh, nil*/
-		case "pull_request_review":
-		case "issue_comment":
-		case "pull_request":
-			wh, err := s.ProcessPullRequestWebhook(ctx)
-			if err != nil {
-				return nil, err
+
+			notifyStatusErr := s.GithubClient.CreateStatus(config, statusWH)
+
+			if notifyStatusErr != nil {
+				return nil, apierrors.NewInternalServerApiError(notifyStatusErr.Message(), notifyStatusErr)
 			}
-			return wh, nil
-		case "create":
+
 		default:
 			return nil, apierrors.NewBadRequestApiError("Event not supported yet")
 		}
