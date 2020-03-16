@@ -32,7 +32,7 @@ type githubClient struct {
 func NewGithubClient() GithubClient {
 	hs := make(http.Header)
 	hs.Set("cache-control", "no-cache")
-	hs.Set("Authorization", "token 1a0b3d127e1d648373ecac9e6e327d0d5070d8cf")
+	hs.Set("Authorization", "token <<TOKEN>>")
 	hs.Set("Accept", "application/vnd.github.luke-cage-preview+json")
 
 	return &githubClient{
