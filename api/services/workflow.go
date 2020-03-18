@@ -16,7 +16,7 @@ type WorkflowService interface {
 }
 
 const (
-	statusWebhookTargetURL          = "url_de_wiki"
+	statusWebhookTargetURL          = "http://www.url_de_wiki"
 	statusWebhookSuccessState       = "success"
 	statusWebhookSuccessDescription = "Great! You comply with the workflow"
 	statusWebhookFailureState       = "error"
@@ -83,14 +83,14 @@ func (c *Configuration) CheckWorkflow(config *models.Configuration, prWebhook *w
 	for _, branch := range workflowBranchesList {
 		if branch.Stable {
 			if branch.Name == prWebhook.PullRequest.Base.Ref {
+
 				//Check if base branch accepts PR from the head branch in the configured workflow
-				acceptedPullRequest := utils.StringContains(branch.Requirements.AcceptPrFrom, prWebhook.PullRequest.Head.Ref)
-
-				if acceptedPullRequest {
-					workflowOk = true
-					continue
+				for _, acceptedBranch := range branch.Requirements.AcceptPrFrom {
+					if strings.HasPrefix(prWebhook.PullRequest.Head.Ref, acceptedBranch) {
+						workflowOk = true
+						continue
+					}
 				}
-
 			} else if branch.StartWith { //check if the base branch start with the stable branch name i.e release/
 				if strings.HasPrefix(prWebhook.PullRequest.Base.Ref, branch.Name) {
 					//Check if base branch accepts PR from the head branch in the configured workflow
