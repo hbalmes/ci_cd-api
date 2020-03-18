@@ -205,7 +205,7 @@ func (c *githubClient) SetDefaultBranch(config *models.Configuration, workflowCo
 //This perform a POST request
 func (c *githubClient) CreateStatus(config *models.Configuration, statusWH *webhook.Status) apierrors.ApiError {
 
-	if statusWH.Name == "" || config.RepositoryOwner == nil || config.RepositoryName == nil || statusWH.Sha == "" || statusWH.Context == "" {
+	if config.RepositoryOwner == nil || config.RepositoryName == nil || statusWH.Sha == "" || statusWH.Context == "" {
 		return apierrors.NewBadRequestApiError("invalid body params")
 	}
 
@@ -216,7 +216,7 @@ func (c *githubClient) CreateStatus(config *models.Configuration, statusWH *webh
 		"context":     statusWH.Context,
 	}
 
-	response := c.Client.Post(fmt.Sprintf("repos/%s/%s/statuses/%s", *config.RepositoryOwner, *config.RepositoryName, statusWH.Sha), body)
+	response := c.Client.Post(fmt.Sprintf("/repos/%s/%s/statuses/%s", *config.RepositoryOwner, *config.RepositoryName, statusWH.Sha), body)
 
 	if response.Err() != nil {
 		return apierrors.NewInternalServerApiError("RestClient Error creating new status", response.Err())

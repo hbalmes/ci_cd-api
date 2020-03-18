@@ -171,24 +171,7 @@ func (s *Webhook) ProcessPullRequestWebhook(ctx utils.HTTPContext, config *model
 			return nil, apierrors.NewNotFoundApiError("error checking pull request existence")
 		}
 
-		switch pullRequestWH.Action {
-		case "opened":
-			statusWH, whCheckErr := cf.CheckWorkflow(config, &pullRequestWH)
-
-			if whCheckErr != nil {
-				return nil, whCheckErr
-			}
-
-			notifyStatusErr := s.GithubClient.CreateStatus(config, statusWH)
-
-			if notifyStatusErr != nil {
-				return nil, apierrors.NewInternalServerApiError(notifyStatusErr.Message(), notifyStatusErr)
-			}
-
-		default:
-			return nil, apierrors.NewBadRequestApiError("Event not supported yet")
-		}
-
+		//Save the Pull request
 		saveErr := s.SavePullRequestWebhook(pullRequestWH)
 
 		if saveErr != nil {
@@ -216,6 +199,26 @@ func (s *Webhook) ProcessPullRequestWebhook(ctx utils.HTTPContext, config *model
 		if err := s.SQL.Insert(&wh); err != nil {
 			return nil, apierrors.NewInternalServerApiError("error saving new pull request webhook", err)
 		}
+
+		switch pullRequestWH.Action {
+		case "opened":
+			statusWH, whCheckErr := cf.CheckWorkflow(config, &pullRequestWH)
+
+			if whCheckErr != nil {
+				return nil, whCheckErr
+			}
+
+			notifyStatusErr := s.GithubClient.CreateStatus(config, statusWH)
+
+			if notifyStatusErr != nil {
+				return nil, apierrors.NewInternalServerApiError(notifyStatusErr.Message(), notifyStatusErr)
+			}
+
+		default:
+			return nil, apierrors.NewBadRequestApiError("Event not supported yet")
+		}
+
+
 
 	} else { //If webhook already exists then return it
 		return nil, apierrors.NewConflictApiError("Resource Already exists")
