@@ -20,17 +20,17 @@ jobs: # basic units of work in a run
           keys:
             - go-mod-v4-{{ checksum "go.sum" }}
 
-      - run:
-          name: Run tests
-
-          # store the results of our tests in the $TEST_RESULTS directory
-          command: |
-            # PACKAGE_NAMES=$(go list ./... | circleci tests split --split-by=timings --timings-type=classname)
-            # gotestsum --junitfile ${TEST_RESULTS}/gotestsum-report.xml -- $PACKAGE_NAMES
-            cd api
-            go test -coverprofile=c.out
-            go tool cover -html=c.out -o coverage.html
-            mv coverage.html /tmp/test-results
+  test:
+    - run:
+      name: Run tests
+      # store the results of our tests in the $TEST_RESULTS directory
+      command: |
+        # PACKAGE_NAMES=$(go list ./... | circleci tests split --split-by=timings --timings-type=classname)
+        # gotestsum --junitfile ${TEST_RESULTS}/gotestsum-report.xml -- $PACKAGE_NAMES
+        cd api
+        go test -coverprofile=c.out
+        go tool cover -html=c.out -o coverage.html
+        mv coverage.html /tmp/test-results
 
       - save_cache:
           key: go-mod-v4-{{ checksum "go.sum" }}
@@ -51,3 +51,4 @@ workflows:
   build-workflow:
     jobs:
       - build
+      - test
