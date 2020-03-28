@@ -15,7 +15,6 @@ jobs: # basic units of work in a run
     steps: # steps that comprise the `build` job
       - checkout # check out source code to working directory
       - run: mkdir -p $TEST_RESULTS # create the test results directory
-      - run: cd api/ #move to api folder
 
       - restore_cache: # restores saved cache if no changes are detected since last run
           keys:
@@ -28,6 +27,7 @@ jobs: # basic units of work in a run
           command: |
             # PACKAGE_NAMES=$(go list ./... | circleci tests split --split-by=timings --timings-type=classname)
             # gotestsum --junitfile ${TEST_RESULTS}/gotestsum-report.xml -- $PACKAGE_NAMES
+            cd api
             go test -coverprofile=c.out
             go tool cover -html=c.out -o coverage.html
             mv coverage.html /tmp/test-results
