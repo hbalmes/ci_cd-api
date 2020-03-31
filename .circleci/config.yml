@@ -28,7 +28,7 @@ jobs: # basic units of work in a run
             # PACKAGE_NAMES=$(go list ./... | circleci tests split --split-by=timings --timings-type=classname)
             # gotestsum --junitfile ${TEST_RESULTS}/gotestsum-report.xml -- $PACKAGE_NAMES
             cd api
-            go test -coverprofile=c.out
+            go test ./... -coverprofile=c.out
             go tool cover -html=c.out -o coverage.html
             mv coverage.html /tmp/test-results
 
