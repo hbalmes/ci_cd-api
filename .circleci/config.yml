@@ -28,20 +28,16 @@ jobs: # basic units of work in a run
             # PACKAGE_NAMES=$(go list ./... | circleci tests split --split-by=timings --timings-type=classname)
             # gotestsum --junitfile ${TEST_RESULTS}/gotestsum-report.xml -- $PACKAGE_NAMES
             cd api
-            go test -race ./... -coverprofile=coverage.txt -covermode=atomic
+            go test -race ./... -coverprofile=coverage.out -covermode=atomic
+            cat coverage.out >> coverage.txt
             mv coverage.txt $TEST_RESULTS
+            cd $TEST_RESULTS
+            ls -la
 
       - save_cache:
           key: go-mod-v4-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
-
-      - store_artifacts: # upload test summary for display in Artifacts
-          path: $TEST_RESULTS
-          destination: raw-test-output
-
-      - store_test_results: # upload test results for display in Test Summary
-          path: $TEST_RESULTS
 
       - codecov/upload:
           file: $TEST_RESULTS
