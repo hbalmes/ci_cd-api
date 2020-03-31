@@ -14,10 +14,18 @@ import (
 	"io/ioutil"
 )
 
+const (
+	pullRequestReviewSubmittedAction = "submitted"
+	pullRequestReviewEditedAction    = "edited"
+	pullRequestReviewDismissedAction = "dismissed"
+	approvedPullRequestReviewState   = "approved"
+)
+
 type WebhookService interface {
 	CreateWebhook(ctx *gin.Context, webhookEvent string) (*webhook.Webhook, apierrors.ApiError)
 	ProcessStatusWebhook(ctx utils.HTTPContext, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
 	ProcessPullRequestWebhook(ctx utils.HTTPContext, config *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
+	ProcessPullRequestReviewWebhook(ctx utils.HTTPContext, config *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
 	SavePullRequestWebhook(pullRequestWH webhook.PullRequestWebhook) apierrors.ApiError
 }
 
@@ -85,6 +93,11 @@ func (s *Webhook) CreateWebhook(ctx *gin.Context, webhookEvent string) (*webhook
 		}
 		return wh, nil
 	case "pull_request_review":
+		wh, err := s.ProcessPullRequestReviewWebhook(ctx, &config)
+		if err != nil {
+			return nil, err
+		}
+		return wh, nil
 	case "issue_comment":
 	case "pull_request":
 		wh, err := s.ProcessPullRequestWebhook(ctx, &config)
@@ -218,10 +231,83 @@ func (s *Webhook) ProcessPullRequestWebhook(ctx utils.HTTPContext, config *model
 			return nil, apierrors.NewBadRequestApiError("Event not supported yet")
 		}
 
-
-
 	} else { //If webhook already exists then return it
 		return nil, apierrors.NewConflictApiError("Resource Already exists")
+	}
+
+	return &wh, nil
+}
+
+//ProcessPullRequestWebhook process
+func (s *Webhook) ProcessPullRequestReviewWebhook(ctx utils.HTTPContext, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError) {
+
+	var pullRequestReviewWH webhook.PullRequestReviewWebhook
+	var wh webhook.Webhook
+
+	webhookType := utils.Stringify(ctx.GetHeader("X-GitHub-Event"))
+
+	if err := ctx.BindJSON(&pullRequestReviewWH); err != nil {
+		return nil, apierrors.NewBadRequestApiError("invalid pull request review webhook payload")
+	}
+
+	//Build a ID to identify a unique webhook
+	prWHBaseID := pullRequestReviewWH.Repository.FullName + pullRequestReviewWH.PullRequest.Head.Sha + *webhookType + pullRequestReviewWH.Review.State
+	prWebhookID := utils.Stringify(utils.GetMD5Hash(prWHBaseID))
+
+	switch pullRequestReviewWH.Action {
+	case pullRequestReviewSubmittedAction:
+		//If the revision was approved. We must keep in the database
+		if pullRequestReviewWH.Review.State == approvedPullRequestReviewState {
+
+			//Search the status webhook into database
+			if err := s.SQL.GetBy(&wh, "id = ?", &prWebhookID); err != nil {
+
+				//If the error is not a not found error, then there is a problem
+				if err != gorm.ErrRecordNotFound {
+					return nil, apierrors.NewNotFoundApiError("error checking status webhook existence")
+				}
+
+				//Fill every field in the webhook
+				wh.ID = prWebhookID
+				wh.GithubDeliveryID = utils.Stringify(ctx.GetHeader("X-GitHub-Delivery"))
+				wh.Type = webhookType
+				wh.GithubRepositoryName = utils.Stringify(pullRequestReviewWH.Repository.FullName)
+				wh.SenderName = utils.Stringify(pullRequestReviewWH.Sender.Login)
+				wh.WebhookCreateAt = pullRequestReviewWH.PullRequest.CreatedAt
+				wh.WebhookUpdated = pullRequestReviewWH.PullRequest.UpdatedAt
+				wh.State = utils.Stringify(pullRequestReviewWH.Review.State)
+				wh.Sha = utils.Stringify(pullRequestReviewWH.PullRequest.Head.Sha)
+				wh.Description = utils.Stringify(pullRequestReviewWH.Review.Body)
+
+				//Save it into database
+				if err := s.SQL.Insert(&wh); err != nil {
+					return nil, apierrors.NewInternalServerApiError("error saving new pull request review webhook", err)
+				}
+
+			} else { //If webhook already exists then return it
+				//Returns the saved webhook
+				return &wh, nil
+			}
+		}
+
+		return nil, apierrors.NewBadRequestApiError("pull request review state not supported yet")
+
+	case pullRequestReviewDismissedAction:
+		//Search the status webhook into database
+		if err := s.SQL.GetBy(&wh, "id = ?", &prWebhookID); err != nil {
+
+			//If the error is not a not found error, then there is a problem
+			if err != gorm.ErrRecordNotFound {
+				return nil, apierrors.NewNotFoundApiError("error checking status webhook existence")
+			}
+
+			//Delete the value from DB
+			if err := s.SQL.Delete(&wh); err != nil {
+				return nil, apierrors.NewInternalServerApiError("error saving new pull request review webhook", err)
+			}
+		}
+	default:
+		return nil, apierrors.NewBadRequestApiError("action not supported yet")
 	}
 
 	return &wh, nil
