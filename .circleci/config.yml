@@ -30,6 +30,7 @@ jobs: # basic units of work in a run
             cat coverage.out >> coverage.txt
             mv coverage.txt $TEST_RESULTS
             cd $TEST_RESULTS
+            pwd
             ls -la
 
             # PACKAGE_NAMES=$(go list ./... | circleci tests split --split-by=timings --timings-type=classname)
