@@ -7,11 +7,12 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
 	"github.com/hbalmes/ci_cd-api/api/utils"
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
+	"github.com/jinzhu/gorm"
 	"testing"
 	"time"
 )
 
-/*func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
+func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 
 	type args struct {
 		payload *webhook.PullRequestReviewWebhook
@@ -900,162 +901,6 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 
 		})
 	}
-}*/
-
-func TestWebhook_CreateWebhook(t *testing.T) {
-
-	type args struct {
-		payload *webhook.Status
-		config  *models.Configuration
-		parseMock func(i interface{}) error
-		param     string
-	}
-
-	type clientsResult struct {
-		sqlClient    apierrors.ApiError
-		githubClient apierrors.ApiError
-	}
-
-	type workflowCheckResult struct {
-		webhookStatus *webhook.Status
-		error         apierrors.ApiError
-	}
-
-	type expects struct {
-		sqlGetByError       error
-		sqlInsertError      error
-		sqlInsertWHError    error
-		sqlDeleteError      error
-		config              models.Configuration
-		clientsResult       clientsResult
-		workflowCheckResult workflowCheckResult
-		savePullRequest     apierrors.ApiError
-	}
-
-	var allowedStatusWebhookSuccess webhook.Status
-	allowedStatusWebhookSuccess.Context = "workflow"
-	allowedStatusWebhookSuccess.Sha = "23456789qwertyuiasdfghjzxcvbn"
-	allowedStatusWebhookSuccess.State = "success"
-	allowedStatusWebhookSuccess.Sender.Login = "hbalmes"
-	allowedStatusWebhookSuccess.Repository.FullName = "hbalmes/ci-cd_api"
-	allowedStatusWebhookSuccess.Description = "Webhook description"
-	allowedStatusWebhookSuccess.TargetURL = "http://url-api.com"
-	allowedStatusWebhookSuccess.Name = "workflow"
-
-	var notAllowedStatusWebhookSuccess webhook.Status
-	notAllowedStatusWebhookSuccess.Sha = "23456789qwertyuiasdfghjzxcvbn"
-	notAllowedStatusWebhookSuccess.State = "success"
-	notAllowedStatusWebhookSuccess.Sender.Login = "hbalmes"
-	notAllowedStatusWebhookSuccess.Repository.FullName = "hbalmes/ci-cd_api"
-	notAllowedStatusWebhookSuccess.Description = "Webhook description"
-	notAllowedStatusWebhookSuccess.TargetURL = "http://url-api.com"
-	notAllowedStatusWebhookSuccess.Name = "lalalala"
-
-	var webhookOK webhook.Webhook
-	webhookOK.Type = utils.Stringify("pull_request")
-
-	statusList := []string{"workflow", "continuous-integration", "minimum-coverage", "pull-request-coverage"}
-
-	reqChecks := make([]models.RequireStatusCheck, 0)
-	for _, rq := range statusList {
-		reqChecks = append(reqChecks, models.RequireStatusCheck{
-			Check: rq,
-		})
-	}
-
-	codeCoverageThreadhold := 80.0
-
-	cicdConfigOK := models.Configuration{
-		ID:                               utils.Stringify("ci-cd_api"),
-		RepositoryName:                   utils.Stringify("ci-cd_api"),
-		RepositoryOwner:                  utils.Stringify("hbalmes"),
-		RepositoryStatusChecks:           reqChecks,
-		WorkflowType:                     utils.Stringify("gitflow"),
-		CodeCoveragePullRequestThreshold: &codeCoverageThreadhold,
-		CreatedAt:                        time.Time{},
-		UpdatedAt:                        time.Time{},
-	}
-
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-		expects expects
-	}{
-		{
-			name: "test - Not allowed status webhook",
-			args: args{
-				payload: &notAllowedStatusWebhookSuccess,
-				config:  &cicdConfigOK,
-			},
-
-			expects: expects{
-				clientsResult: clientsResult{
-					sqlClient:    nil,
-					githubClient: nil,
-				},
-				sqlGetByError:    nil,
-				sqlInsertWHError: nil,
-				sqlInsertError:   nil,
-			},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
-			githubClient := interfaces.NewMockGithubClient(ctrl)
-			ctx := interfaces.NewMockHTTPContext(ctrl)
-
-			sqlStorage.EXPECT().
-				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(e interface{}, qry ...interface{}) *webhook.Webhook {
-					return &webhookOK
-				}).
-				Return(tt.expects.sqlGetByError).
-				AnyTimes()
-
-			sqlStorage.EXPECT().
-				Insert(gomock.Any()).
-				Return(tt.expects.sqlInsertError).
-				AnyTimes()
-
-			sqlStorage.EXPECT().
-				Delete(gomock.Any()).
-				Return(tt.expects.sqlDeleteError).
-				AnyTimes()
-
-			githubClient.EXPECT().
-				CreateStatus(gomock.Any(), gomock.Any()).
-				Return(tt.expects.clientsResult.githubClient).
-				AnyTimes()
-
-			ctx.
-				EXPECT().
-				BindJSON(gomock.Any()).
-				DoAndReturn(tt.args.parseMock).
-				AnyTimes()
-
-			ctx.
-				EXPECT().
-				Param(gomock.Any()).
-				Return(tt.args.param).
-				AnyTimes()
-
-			s := &Webhook{
-				SQL:          sqlStorage,
-				GithubClient: githubClient,
-			}
-			_, err := s.CreateWebhook(ctx, tt.args.config)
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Webhook.ProcessStatusWebhook() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-		})
-	}
 }
+
+
