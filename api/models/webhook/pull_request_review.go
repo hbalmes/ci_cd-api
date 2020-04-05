@@ -1,7 +1,5 @@
 package webhook
 
-import "time"
-
 type PullRequestReviewWebhook struct {
 	Action string `json:"action"`
 	Review struct {
@@ -10,10 +8,10 @@ type PullRequestReviewWebhook struct {
 			Login string `json:"login"`
 			ID    int    `json:"id"`
 		} `json:"user"`
-		Body        string    `json:"body"`
-		CommitID    string    `json:"commit_id"`
-		SubmittedAt time.Time `json:"submitted_at"`
-		State       string    `json:"state"`
+		Body        string `json:"body"`
+		CommitID    string `json:"commit_id"`
+		SubmittedAt string `json:"submitted_at"`
+		State       string `json:"state"`
 	} `json:"review"`
 	PullRequest struct {
 		ID                 int           `json:"id"`
@@ -21,8 +19,8 @@ type PullRequestReviewWebhook struct {
 		State              string        `json:"state"`
 		Title              string        `json:"title"`
 		Body               string        `json:"body"`
-		CreatedAt          time.Time     `json:"created_at"`
-		UpdatedAt          time.Time     `json:"updated_at"`
+		CreatedAt          string        `json:"created_at"`
+		UpdatedAt          string        `json:"updated_at"`
 		ClosedAt           interface{}   `json:"closed_at"`
 		MergedAt           interface{}   `json:"merged_at"`
 		MergeCommitSha     string        `json:"merge_commit_sha"`

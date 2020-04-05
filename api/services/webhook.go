@@ -23,9 +23,9 @@ const (
 
 type WebhookService interface {
 	CreateWebhook(ctx *gin.Context, webhookEvent string) (*webhook.Webhook, apierrors.ApiError)
-	ProcessStatusWebhook(ctx utils.HTTPContext, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
-	ProcessPullRequestWebhook(ctx utils.HTTPContext, config *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
-	ProcessPullRequestReviewWebhook(ctx utils.HTTPContext, config *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
+	ProcessStatusWebhook(payload *webhook.Status, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
+	ProcessPullRequestWebhook(payload webhook.PullRequestWebhook, config *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
+	ProcessPullRequestReviewWebhook(payload *webhook.PullRequestReviewWebhook) (*webhook.Webhook, apierrors.ApiError)
 	SavePullRequestWebhook(pullRequestWH webhook.PullRequestWebhook) apierrors.ApiError
 }
 
@@ -87,23 +87,53 @@ func (s *Webhook) CreateWebhook(ctx *gin.Context, webhookEvent string) (*webhook
 
 	switch webhookEvent {
 	case "status":
-		wh, err := s.ProcessStatusWebhook(ctx, &config)
+		var statusWH webhook.Status
+
+		if err := ctx.BindJSON(&statusWH); err != nil {
+			return nil, apierrors.NewBadRequestApiError("invalid status webhook payload")
+		}
+
+		wh, err := s.ProcessStatusWebhook(&statusWH, &config)
+
 		if err != nil {
 			return nil, err
 		}
+
 		return wh, nil
+
 	case "pull_request_review":
-		wh, err := s.ProcessPullRequestReviewWebhook(ctx, &config)
+
+		var pullRequestReviewWH webhook.PullRequestReviewWebhook
+
+		if err := ctx.BindJSON(&pullRequestReviewWH); err != nil {
+			return nil, apierrors.NewBadRequestApiError("invalid pull request review webhook payload")
+		}
+
+		wh, err := s.ProcessPullRequestReviewWebhook(&pullRequestReviewWH)
+
 		if err != nil {
 			return nil, err
 		}
+
 		return wh, nil
+
 	case "issue_comment":
+
+		return &wh, nil
+
 	case "pull_request":
-		wh, err := s.ProcessPullRequestWebhook(ctx, &config)
+
+		var pullRequestWH webhook.PullRequestWebhook
+		if err := ctx.BindJSON(&pullRequestWH); err != nil {
+			return nil, apierrors.NewBadRequestApiError("invalid pull_request webhook payload")
+		}
+
+		wh, err := s.ProcessPullRequestWebhook(pullRequestWH, &config)
+
 		if err != nil {
 			return nil, err
 		}
+
 		return wh, nil
 	case "create":
 	default:
@@ -113,22 +143,20 @@ func (s *Webhook) CreateWebhook(ctx *gin.Context, webhookEvent string) (*webhook
 }
 
 //ProcessStatusWebhook process
-func (s *Webhook) ProcessStatusWebhook(ctx utils.HTTPContext, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError) {
+func (s *Webhook) ProcessStatusWebhook(payload *webhook.Status, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError) {
 
-	var statusWH webhook.Status
 	var wh webhook.Webhook
 
-	if err := ctx.BindJSON(&statusWH); err != nil {
-		return nil, apierrors.NewBadRequestApiError("invalid status webhook payload")
-	}
+	webhookType := "status"
 
-	contextAllowed := utils.ContainsStatusChecks(conf.RepositoryStatusChecks, statusWH.Context)
+	contextAllowed := utils.ContainsStatusChecks(conf.RepositoryStatusChecks, payload.Context)
+
 	if !contextAllowed {
 		return nil, apierrors.NewBadRequestApiError("Context not configured for the repository")
 	}
 
 	//Build a ID to identify a unique webhook
-	shBaseID := statusWH.Repository.FullName + statusWH.Sha + statusWH.Context + statusWH.State
+	shBaseID := payload.Repository.FullName + payload.Sha + payload.Context + payload.State
 	statusWebhookID := utils.Stringify(utils.GetMD5Hash(shBaseID))
 
 	//Search the status webhook into database
@@ -141,16 +169,16 @@ func (s *Webhook) ProcessStatusWebhook(ctx utils.HTTPContext, conf *models.Confi
 
 		//Fill every field in the webhook
 		wh.ID = statusWebhookID
-		wh.GithubDeliveryID = utils.Stringify(ctx.GetHeader("X-GitHub-Delivery"))
-		wh.Type = utils.Stringify(ctx.GetHeader("X-GitHub-Event"))
-		wh.GithubRepositoryName = utils.Stringify(statusWH.Repository.FullName)
-		wh.SenderName = utils.Stringify(statusWH.Sender.Login)
-		wh.WebhookCreateAt = statusWH.CreatedAt
-		wh.WebhookUpdated = statusWH.UpdatedAt
-		wh.State = utils.Stringify(statusWH.State)
-		wh.Context = utils.Stringify(statusWH.Context)
-		wh.Sha = utils.Stringify(statusWH.Sha)
-		wh.Description = utils.Stringify(statusWH.Description)
+		//wh.GithubDeliveryID = utils.Stringify(ctx.GetHeader("X-GitHub-Delivery"))
+		wh.Type = utils.Stringify(webhookType)
+		wh.GithubRepositoryName = utils.Stringify(payload.Repository.FullName)
+		wh.SenderName = utils.Stringify(payload.Sender.Login)
+		wh.WebhookCreateAt = payload.CreatedAt
+		wh.WebhookUpdated = payload.UpdatedAt
+		wh.State = utils.Stringify(payload.State)
+		wh.Context = utils.Stringify(payload.Context)
+		wh.Sha = utils.Stringify(payload.Sha)
+		wh.Description = utils.Stringify(payload.Description)
 
 		//Save it into database
 		if err := s.SQL.Insert(&wh); err != nil {
@@ -165,19 +193,20 @@ func (s *Webhook) ProcessStatusWebhook(ctx utils.HTTPContext, conf *models.Confi
 }
 
 //ProcessPullRequestWebhook process
-func (s *Webhook) ProcessPullRequestWebhook(ctx utils.HTTPContext, config *models.Configuration) (*webhook.Webhook, apierrors.ApiError) {
+func (s *Webhook) ProcessPullRequestWebhook(payload webhook.PullRequestWebhook, config *models.Configuration) (*webhook.Webhook, apierrors.ApiError) {
 
-	var pullRequestWH webhook.PullRequestWebhook
 	var prWH webhook.PullRequest
 	var wh webhook.Webhook
 	var cf Configuration
 
-	if err := ctx.BindJSON(&pullRequestWH); err != nil {
-		return nil, apierrors.NewBadRequestApiError("invalid pull_request webhook payload")
+	if payload.PullRequest.Base.Ref == "" || payload.PullRequest.Head.Ref == "" {
+		return nil, apierrors.NewBadRequestApiError("Base or Head Ref cant be null")
 	}
 
+	webhookType := "pull_request"
+
 	//Search the pull request webhook in database
-	if err := s.SQL.GetBy(&prWH, "id = ?", &pullRequestWH.PullRequest.ID); err != nil {
+	if err := s.SQL.GetBy(&prWH, "id = ?", &payload.PullRequest.ID); err != nil {
 
 		//If the error is not a not found error, then there is a problem
 		if err != gorm.ErrRecordNotFound {
@@ -185,41 +214,38 @@ func (s *Webhook) ProcessPullRequestWebhook(ctx utils.HTTPContext, config *model
 		}
 
 		//Save the Pull request
-		saveErr := s.SavePullRequestWebhook(pullRequestWH)
+		saveErr := s.SavePullRequestWebhook(payload)
 
 		if saveErr != nil {
 			return nil, saveErr
 		}
 
 		//Build a ID to identify a unique webhook
-		whBaseID := pullRequestWH.Repository.FullName + pullRequestWH.PullRequest.Head.Sha + string(pullRequestWH.PullRequest.ID) + pullRequestWH.PullRequest.State
+		whBaseID := payload.Repository.FullName + payload.PullRequest.Head.Sha + string(payload.PullRequest.ID) + payload.PullRequest.State
 		prWebhookID := utils.Stringify(utils.GetMD5Hash(whBaseID))
 
 		//Fill every field in the webhook
 		wh.ID = prWebhookID
-		wh.GithubDeliveryID = utils.Stringify(ctx.GetHeader("X-GitHub-Delivery"))
-		wh.Type = utils.Stringify(ctx.GetHeader("X-GitHub-Event"))
-		wh.GithubRepositoryName = utils.Stringify(pullRequestWH.Repository.FullName)
-		wh.SenderName = utils.Stringify(pullRequestWH.Sender.Login)
-		wh.WebhookCreateAt = pullRequestWH.PullRequest.CreatedAt
-		wh.WebhookUpdated = pullRequestWH.PullRequest.UpdatedAt
-		wh.State = utils.Stringify(pullRequestWH.PullRequest.State)
-		wh.Sha = utils.Stringify(pullRequestWH.PullRequest.Head.Sha)
-		wh.Description = utils.Stringify(pullRequestWH.PullRequest.Body)
-		wh.GithubPullRequestNumber = &pullRequestWH.PullRequest.Number
+		//wh.GithubDeliveryID = utils.Stringify(ctx.GetHeader("X-GitHub-Delivery"))
+		wh.Type = utils.Stringify(webhookType)
+		wh.GithubRepositoryName = utils.Stringify(payload.Repository.FullName)
+		wh.SenderName = utils.Stringify(payload.Sender.Login)
+		wh.WebhookCreateAt = payload.PullRequest.CreatedAt
+		wh.WebhookUpdated = payload.PullRequest.UpdatedAt
+		wh.State = utils.Stringify(payload.PullRequest.State)
+		wh.Sha = utils.Stringify(payload.PullRequest.Head.Sha)
+		wh.Description = utils.Stringify(payload.PullRequest.Body)
+		wh.GithubPullRequestNumber = &payload.PullRequest.Number
 
 		//Save it into database
 		if err := s.SQL.Insert(&wh); err != nil {
 			return nil, apierrors.NewInternalServerApiError("error saving new pull request webhook", err)
 		}
 
-		switch pullRequestWH.Action {
+		switch payload.Action {
 		case "opened":
-			statusWH, whCheckErr := cf.CheckWorkflow(config, &pullRequestWH)
 
-			if whCheckErr != nil {
-				return nil, whCheckErr
-			}
+			statusWH := cf.CheckWorkflow(config, &payload)
 
 			notifyStatusErr := s.GithubClient.CreateStatus(config, statusWH)
 
@@ -228,7 +254,7 @@ func (s *Webhook) ProcessPullRequestWebhook(ctx utils.HTTPContext, config *model
 			}
 
 		default:
-			return nil, apierrors.NewBadRequestApiError("Event not supported yet")
+			return nil, apierrors.NewBadRequestApiError("Action not supported yet")
 		}
 
 	} else { //If webhook already exists then return it
@@ -239,25 +265,20 @@ func (s *Webhook) ProcessPullRequestWebhook(ctx utils.HTTPContext, config *model
 }
 
 //ProcessPullRequestWebhook process
-func (s *Webhook) ProcessPullRequestReviewWebhook(ctx utils.HTTPContext, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError) {
+func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestReviewWebhook) (*webhook.Webhook, apierrors.ApiError) {
 
-	var pullRequestReviewWH webhook.PullRequestReviewWebhook
 	var wh webhook.Webhook
 
-	webhookType := utils.Stringify(ctx.GetHeader("X-GitHub-Event"))
-
-	if err := ctx.BindJSON(&pullRequestReviewWH); err != nil {
-		return nil, apierrors.NewBadRequestApiError("invalid pull request review webhook payload")
-	}
+	webhookType := "pull_request_review"
 
 	//Build a ID to identify a unique webhook
-	prWHBaseID := pullRequestReviewWH.Repository.FullName + pullRequestReviewWH.PullRequest.Head.Sha + *webhookType + pullRequestReviewWH.Review.State
+	prWHBaseID := payload.Repository.FullName + payload.PullRequest.Head.Sha + webhookType + payload.Review.State
 	prWebhookID := utils.Stringify(utils.GetMD5Hash(prWHBaseID))
 
-	switch pullRequestReviewWH.Action {
+	switch payload.Action {
 	case pullRequestReviewSubmittedAction:
 		//If the revision was approved. We must keep in the database
-		if pullRequestReviewWH.Review.State == approvedPullRequestReviewState {
+		if payload.Review.State == approvedPullRequestReviewState {
 
 			//Search the status webhook into database
 			if err := s.SQL.GetBy(&wh, "id = ?", &prWebhookID); err != nil {
@@ -269,20 +290,20 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(ctx utils.HTTPContext, conf *m
 
 				//Fill every field in the webhook
 				wh.ID = prWebhookID
-				wh.GithubDeliveryID = utils.Stringify(ctx.GetHeader("X-GitHub-Delivery"))
-				wh.Type = webhookType
-				wh.GithubRepositoryName = utils.Stringify(pullRequestReviewWH.Repository.FullName)
-				wh.SenderName = utils.Stringify(pullRequestReviewWH.Sender.Login)
-				wh.WebhookCreateAt = pullRequestReviewWH.PullRequest.CreatedAt
-				wh.WebhookUpdated = pullRequestReviewWH.PullRequest.UpdatedAt
-				wh.State = utils.Stringify(pullRequestReviewWH.Review.State)
-				wh.Sha = utils.Stringify(pullRequestReviewWH.PullRequest.Head.Sha)
-				wh.Description = utils.Stringify(pullRequestReviewWH.Review.Body)
+				//wh.GithubDeliveryID = utils.Stringify(ctx.GetHeader("X-GitHub-Delivery"))
+				wh.Type = utils.Stringify(webhookType)
+				wh.GithubRepositoryName = utils.Stringify(payload.Repository.FullName)
+				wh.SenderName = utils.Stringify(payload.Sender.Login)
+				wh.State = utils.Stringify(payload.Review.State)
+				wh.Sha = utils.Stringify(payload.PullRequest.Head.Sha)
+				wh.Description = utils.Stringify(payload.Review.Body)
 
 				//Save it into database
 				if err := s.SQL.Insert(&wh); err != nil {
 					return nil, apierrors.NewInternalServerApiError("error saving new pull request review webhook", err)
 				}
+
+				return &wh, nil
 
 			} else { //If webhook already exists then return it
 				//Returns the saved webhook
@@ -295,12 +316,14 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(ctx utils.HTTPContext, conf *m
 	case pullRequestReviewDismissedAction:
 		//Search the status webhook into database
 		if err := s.SQL.GetBy(&wh, "id = ?", &prWebhookID); err != nil {
-
 			//If the error is not a not found error, then there is a problem
-			if err != gorm.ErrRecordNotFound {
+			if err == gorm.ErrRecordNotFound {
+				return nil, apierrors.NewNotFoundApiError("webhook not found")
+			} else {
 				return nil, apierrors.NewNotFoundApiError("error checking status webhook existence")
 			}
 
+		} else {
 			//Delete the value from DB
 			if err := s.SQL.Delete(&wh); err != nil {
 				return nil, apierrors.NewInternalServerApiError("error saving new pull request review webhook", err)

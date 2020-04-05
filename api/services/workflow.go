@@ -4,7 +4,6 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/models"
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
 	"github.com/hbalmes/ci_cd-api/api/utils"
-	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"strings"
 )
 import "github.com/hbalmes/ci_cd-api/api/configs"
@@ -12,7 +11,7 @@ import "github.com/hbalmes/ci_cd-api/api/configs"
 //ConfigurationService is an interface which represents the ConfigurationService for testing purpose.
 type WorkflowService interface {
 	SetWorkflow(config *models.WorkflowConfig) error
-	CheckWorkflow(config *models.Configuration, prWebhook *webhook.PullRequestWebhook) apierrors.ApiError
+	CheckWorkflow(config *models.Configuration, prWebhook *webhook.PullRequestWebhook) *webhook.Status
 }
 
 const (
@@ -69,7 +68,7 @@ func (c *Configuration) SetWorkflow(config *models.Configuration) error {
 
 //CheckWorkflow check the workflow
 //This controls that the head branch and the base branch convination, follow the configured workflow.
-func (c *Configuration) CheckWorkflow(config *models.Configuration, prWebhook *webhook.PullRequestWebhook) (*webhook.Status, apierrors.ApiError) {
+func (c *Configuration) CheckWorkflow(config *models.Configuration, prWebhook *webhook.PullRequestWebhook) *webhook.Status {
 
 	var stWebhook webhook.Status
 	workflowOk := false
@@ -119,5 +118,5 @@ func (c *Configuration) CheckWorkflow(config *models.Configuration, prWebhook *w
 	stWebhook.TargetURL = statusWebhookTargetURL
 	stWebhook.Sha = prWebhook.PullRequest.Head.Sha
 
-	return &stWebhook, nil
+	return &stWebhook
 }

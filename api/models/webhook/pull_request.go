@@ -56,9 +56,9 @@ type PullRequestWebhook struct {
 				Name     string `json:"name"`
 				FullName string `json:"full_name"`
 			} `json:"repo"`
-			CreatedAt       time.Time   `json:"created_at"`
-			UpdatedAt       time.Time   `json:"updated_at"`
-			PushedAt        time.Time   `json:"pushed_at"`
+			CreatedAt       string   `json:"created_at"`
+			UpdatedAt       string   `json:"updated_at"`
+			PushedAt        string   `json:"pushed_at"`
 			GitURL          string      `json:"git_url"`
 			SSHURL          string      `json:"ssh_url"`
 			CloneURL        string      `json:"clone_url"`
