@@ -1,9 +1,6 @@
 package services
 
 import (
-	"bytes"
-	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"github.com/hbalmes/ci_cd-api/api/clients"
 	"github.com/hbalmes/ci_cd-api/api/models"
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
@@ -11,7 +8,6 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/utils"
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/jinzhu/gorm"
-	"io/ioutil"
 )
 
 const (
@@ -22,9 +18,8 @@ const (
 )
 
 type WebhookService interface {
-	CreateWebhook(ctx *gin.Context, webhookEvent string) (*webhook.Webhook, apierrors.ApiError)
-	ProcessStatusWebhook(payload *webhook.Status, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
-	ProcessPullRequestWebhook(payload webhook.PullRequestWebhook, config *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
+	ProcessStatusWebhook(payload *webhook.Status) (*webhook.Webhook, apierrors.ApiError)
+	ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook) (*webhook.Webhook, apierrors.ApiError)
 	ProcessPullRequestReviewWebhook(payload *webhook.PullRequestReviewWebhook) (*webhook.Webhook, apierrors.ApiError)
 	SavePullRequestWebhook(pullRequestWH webhook.PullRequestWebhook) apierrors.ApiError
 }
@@ -45,109 +40,25 @@ func NewWebhookService(sql storage.SQLStorage) *Webhook {
 	}
 }
 
-//CreateWebhook creates a new webhook for the given repository
-//It could returns
-//	200OK in case of a success processing the creation
-//	400BadRequest in case of an error parsing the request payload
-//	500InternalServerError in case of an internal error procesing the creation
-func (s *Webhook) CreateWebhook(ctx *gin.Context, webhookEvent string) (*webhook.Webhook, apierrors.ApiError) {
+//ProcessStatusWebhook process
+func (s *Webhook) ProcessStatusWebhook(payload *webhook.Status) (*webhook.Webhook, apierrors.ApiError) {
 
-	// Read the content
-	var bodyBytes []byte
-	if ctx.Request.Body != nil {
-		bodyBytes, _ = ioutil.ReadAll(ctx.Request.Body)
-	}
-	// Restore the io.ReadCloser to its original state
-	ctx.Request.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
+	var wh webhook.Webhook
 
-	//validate that the repository comes in the payload
-	var ghPayload webhook.GithubWebhookStandardPayload
-	if err := json.Unmarshal(bodyBytes, &ghPayload); err != nil {
-		return nil, apierrors.NewBadRequestApiError("invalid github webhook payload")
-	}
+	webhookType := "status"
 
-	repository := ghPayload.Repository.Name
+	repository := utils.Stringify(payload.Repository.FullName)
 
-	var config models.Configuration
+	var conf models.Configuration
 
 	//Validates that the repository has a ci cd configuration
-	if err := s.SQL.GetBy(&config, "id = ?", *repository); err != nil {
+	if err := s.SQL.GetBy(&conf, "id = ?", *repository); err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, apierrors.NewNotFoundApiError("repository dons't have a ci-cd configuration")
 		} else {
 			return nil, apierrors.NewInternalServerApiError("error checking configuration existence", err)
 		}
 	}
-
-	var wh webhook.Webhook
-
-	if webhookEvent == "" {
-		return nil, apierrors.NewBadRequestApiError("x-github-event is null")
-	}
-
-	switch webhookEvent {
-	case "status":
-		var statusWH webhook.Status
-
-		if err := ctx.BindJSON(&statusWH); err != nil {
-			return nil, apierrors.NewBadRequestApiError("invalid status webhook payload")
-		}
-
-		wh, err := s.ProcessStatusWebhook(&statusWH, &config)
-
-		if err != nil {
-			return nil, err
-		}
-
-		return wh, nil
-
-	case "pull_request_review":
-
-		var pullRequestReviewWH webhook.PullRequestReviewWebhook
-
-		if err := ctx.BindJSON(&pullRequestReviewWH); err != nil {
-			return nil, apierrors.NewBadRequestApiError("invalid pull request review webhook payload")
-		}
-
-		wh, err := s.ProcessPullRequestReviewWebhook(&pullRequestReviewWH)
-
-		if err != nil {
-			return nil, err
-		}
-
-		return wh, nil
-
-	case "issue_comment":
-
-		return &wh, nil
-
-	case "pull_request":
-
-		var pullRequestWH webhook.PullRequestWebhook
-		if err := ctx.BindJSON(&pullRequestWH); err != nil {
-			return nil, apierrors.NewBadRequestApiError("invalid pull_request webhook payload")
-		}
-
-		wh, err := s.ProcessPullRequestWebhook(pullRequestWH, &config)
-
-		if err != nil {
-			return nil, err
-		}
-
-		return wh, nil
-	case "create":
-	default:
-		return nil, apierrors.NewBadRequestApiError("Event not supported yet")
-	}
-	return &wh, nil
-}
-
-//ProcessStatusWebhook process
-func (s *Webhook) ProcessStatusWebhook(payload *webhook.Status, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError) {
-
-	var wh webhook.Webhook
-
-	webhookType := "status"
 
 	contextAllowed := utils.ContainsStatusChecks(conf.RepositoryStatusChecks, payload.Context)
 
@@ -193,11 +104,24 @@ func (s *Webhook) ProcessStatusWebhook(payload *webhook.Status, conf *models.Con
 }
 
 //ProcessPullRequestWebhook process
-func (s *Webhook) ProcessPullRequestWebhook(payload webhook.PullRequestWebhook, config *models.Configuration) (*webhook.Webhook, apierrors.ApiError) {
+func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook) (*webhook.Webhook, apierrors.ApiError) {
 
 	var prWH webhook.PullRequest
 	var wh webhook.Webhook
 	var cf Configuration
+
+	repository := utils.Stringify(payload.Repository.FullName)
+
+	var config models.Configuration
+
+	//Validates that the repository has a ci cd configuration
+	if err := s.SQL.GetBy(&config, "id = ?", *repository); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apierrors.NewNotFoundApiError("repository dons't have a ci-cd configuration")
+		} else {
+			return nil, apierrors.NewInternalServerApiError("error checking configuration existence", err)
+		}
+	}
 
 	if payload.PullRequest.Base.Ref == "" || payload.PullRequest.Head.Ref == "" {
 		return nil, apierrors.NewBadRequestApiError("Base or Head Ref cant be null")
@@ -214,7 +138,7 @@ func (s *Webhook) ProcessPullRequestWebhook(payload webhook.PullRequestWebhook, 
 		}
 
 		//Save the Pull request
-		saveErr := s.SavePullRequestWebhook(payload)
+		saveErr := s.SavePullRequestWebhook(*payload)
 
 		if saveErr != nil {
 			return nil, saveErr
@@ -245,9 +169,9 @@ func (s *Webhook) ProcessPullRequestWebhook(payload webhook.PullRequestWebhook, 
 		switch payload.Action {
 		case "opened":
 
-			statusWH := cf.CheckWorkflow(config, &payload)
+			statusWH := cf.CheckWorkflow(&config, payload)
 
-			notifyStatusErr := s.GithubClient.CreateStatus(config, statusWH)
+			notifyStatusErr := s.GithubClient.CreateStatus(&config, statusWH)
 
 			if notifyStatusErr != nil {
 				return nil, apierrors.NewInternalServerApiError(notifyStatusErr.Message(), notifyStatusErr)
