@@ -5,12 +5,13 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/clients"
 	"github.com/hbalmes/ci_cd-api/api/models"
 	"github.com/hbalmes/ci_cd-api/api/services/storage"
+	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/jinzhu/gorm"
 )
 
 //ConfigurationService is an interface which represents the ConfigurationService for testing purpose.
 type ConfigurationService interface {
-	Create(*models.PostRequestPayload) (*models.Configuration, error)
+	Create(r *models.PostRequestPayload) (*models.Configuration, apierrors.ApiError)
 	Get(string) (*models.Configuration, error)
 	Update(r *models.PutRequestPayload) (*models.Configuration, error)
 	Delete(id string) error
@@ -34,7 +35,7 @@ func NewConfigurationService(sql storage.SQLStorage) *Configuration {
 
 //Create creates a Release Process valid configuration.
 //It performs all the actions needed to enabled successfuly Release Process.
-func (s *Configuration) Create(r *models.PostRequestPayload) (*models.Configuration, error) {
+func (s *Configuration) Create(r *models.PostRequestPayload) (*models.Configuration, apierrors.ApiError) {
 
 	config := *models.NewConfiguration(r)
 
@@ -46,7 +47,7 @@ func (s *Configuration) Create(r *models.PostRequestPayload) (*models.Configurat
 
 		//If the error is not a not found error, then there is a problem
 		if err != gorm.ErrRecordNotFound {
-			return nil, errors.New("error checking configuration existence")
+			return nil, apierrors.NewInternalServerApiError("error checking configuration existence", err)
 		}
 
 		setWorkflowError := s.SetWorkflow(&config)
@@ -57,7 +58,7 @@ func (s *Configuration) Create(r *models.PostRequestPayload) (*models.Configurat
 
 		//Save it into database
 		if err := s.SQL.Insert(&config); err != nil {
-			return nil, errors.New("error saving new configuration")
+			return nil, apierrors.NewInternalServerApiError("error saving new configuration", err)
 		}
 		return &config, nil
 

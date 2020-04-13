@@ -6,6 +6,7 @@ package interfaces
 
 import (
 	gomock "github.com/golang/mock/gomock"
+	models "github.com/hbalmes/ci_cd-api/api/models"
 	webhook "github.com/hbalmes/ci_cd-api/api/models/webhook"
 	apierrors "github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	reflect "reflect"
@@ -35,18 +36,18 @@ func (m *MockWebhookService) EXPECT() *MockWebhookServiceMockRecorder {
 }
 
 // ProcessStatusWebhook mocks base method
-func (m *MockWebhookService) ProcessStatusWebhook(payload *webhook.Status) (*webhook.Webhook, apierrors.ApiError) {
+func (m *MockWebhookService) ProcessStatusWebhook(payload *webhook.Status, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessStatusWebhook", payload)
+	ret := m.ctrl.Call(m, "ProcessStatusWebhook", payload, conf)
 	ret0, _ := ret[0].(*webhook.Webhook)
 	ret1, _ := ret[1].(apierrors.ApiError)
 	return ret0, ret1
 }
 
 // ProcessStatusWebhook indicates an expected call of ProcessStatusWebhook
-func (mr *MockWebhookServiceMockRecorder) ProcessStatusWebhook(payload interface{}) *gomock.Call {
+func (mr *MockWebhookServiceMockRecorder) ProcessStatusWebhook(payload, conf interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessStatusWebhook", reflect.TypeOf((*MockWebhookService)(nil).ProcessStatusWebhook), payload)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessStatusWebhook", reflect.TypeOf((*MockWebhookService)(nil).ProcessStatusWebhook), payload, conf)
 }
 
 // ProcessPullRequestWebhook mocks base method

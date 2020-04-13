@@ -7,11 +7,12 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
 	"github.com/hbalmes/ci_cd-api/api/utils"
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
+	"github.com/jinzhu/gorm"
 	"testing"
 	"time"
 )
 
-/*func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
+func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 
 	type args struct {
 		payload *webhook.PullRequestReviewWebhook
@@ -216,10 +217,6 @@ import (
 			}
 			_, err := s.ProcessPullRequestReviewWebhook(tt.args.payload)
 
-			//if !reflect.DeepEqual(got, tt.want) {
-			//	t.Errorf("ProcessPullRequestReviewWebhook() got = %v, want %v", got, tt.want)
-			//}
-
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Webhook.ProcessPullRequestReviewWebhook() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -340,38 +337,38 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 
 	var pullRequestWebhook webhook.PullRequestWebhook
 	pullRequestWebhook.Number = 12345
-	pullRequestWebhook.Action = "opened"
-	pullRequestWebhook.Repository.FullName = "hbalmes/ci-cd_api"
-	pullRequestWebhook.Sender.Login = "hbalmes"
-	pullRequestWebhook.PullRequest.State = "open"
-	pullRequestWebhook.PullRequest.Head.Sha = "123456789qwertyuasdfghjzxcvbn"
-	pullRequestWebhook.PullRequest.Head.Ref = "feature/test"
-	pullRequestWebhook.PullRequest.Base.Sha = "lkjhgfdsoiuytrewqmnbvcxz12345"
-	pullRequestWebhook.PullRequest.Base.Ref = "develop"
-	pullRequestWebhook.PullRequest.Body = "Pull request Body"
+	pullRequestWebhook.Action = utils.Stringify("opened")
+	pullRequestWebhook.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestWebhook.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestWebhook.PullRequest.State = utils.Stringify("open")
+	pullRequestWebhook.PullRequest.Head.Sha = utils.Stringify("123456789qwertyuasdfghjzxcvbn")
+	pullRequestWebhook.PullRequest.Head.Ref = utils.Stringify("feature/test")
+	pullRequestWebhook.PullRequest.Base.Sha = utils.Stringify("lkjhgfdsoiuytrewqmnbvcxz12345")
+	pullRequestWebhook.PullRequest.Base.Ref = utils.Stringify("develop")
+	pullRequestWebhook.PullRequest.Body = utils.Stringify("Pull request Body")
 
 	var pullRequestWebhookActionNotSupported webhook.PullRequestWebhook
 	pullRequestWebhookActionNotSupported.Number = 12345
-	pullRequestWebhookActionNotSupported.Action = "lalalala"
-	pullRequestWebhookActionNotSupported.Repository.FullName = "hbalmes/ci-cd_api"
-	pullRequestWebhookActionNotSupported.Sender.Login = "hbalmes"
-	pullRequestWebhookActionNotSupported.PullRequest.State = "open"
-	pullRequestWebhookActionNotSupported.PullRequest.Head.Sha = "123456789qwertyuasdfghjzxcvbn"
-	pullRequestWebhookActionNotSupported.PullRequest.Head.Ref = "feature/test"
-	pullRequestWebhookActionNotSupported.PullRequest.Base.Sha = "lkjhgfdsoiuytrewqmnbvcxz12345"
-	pullRequestWebhookActionNotSupported.PullRequest.Base.Ref = "develop"
-	pullRequestWebhookActionNotSupported.PullRequest.Body = "Pull request Body"
+	pullRequestWebhookActionNotSupported.Action = utils.Stringify("lalalala")
+	pullRequestWebhookActionNotSupported.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestWebhookActionNotSupported.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestWebhookActionNotSupported.PullRequest.State = utils.Stringify("open")
+	pullRequestWebhookActionNotSupported.PullRequest.Head.Sha = utils.Stringify("123456789qwertyuasdfghjzxcvbn")
+	pullRequestWebhookActionNotSupported.PullRequest.Head.Ref = utils.Stringify("feature/test")
+	pullRequestWebhookActionNotSupported.PullRequest.Base.Sha = utils.Stringify("lkjhgfdsoiuytrewqmnbvcxz12345")
+	pullRequestWebhookActionNotSupported.PullRequest.Base.Ref = utils.Stringify("develop")
+	pullRequestWebhookActionNotSupported.PullRequest.Body = utils.Stringify("Pull request Body")
 
 	var pullRequestWebhookBadRequest webhook.PullRequestWebhook
 	pullRequestWebhookBadRequest.Number = 12345
-	pullRequestWebhookBadRequest.Action = "opened"
-	pullRequestWebhookBadRequest.Repository.FullName = "hbalmes/ci-cd_api"
-	pullRequestWebhookBadRequest.Sender.Login = "hbalmes"
-	pullRequestWebhookBadRequest.PullRequest.State = "open"
-	pullRequestWebhookBadRequest.PullRequest.Head.Sha = "123456789qwertyuasdfghjzxcvbn"
-	pullRequestWebhookBadRequest.PullRequest.Base.Sha = "lkjhgfdsoiuytrewqmnbvcxz12345"
-	pullRequestWebhookBadRequest.PullRequest.Base.Ref = "develop"
-	pullRequestWebhookBadRequest.PullRequest.Body = "Pull request Body"
+	pullRequestWebhookBadRequest.Action = utils.Stringify("opened")
+	pullRequestWebhookBadRequest.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestWebhookBadRequest.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestWebhookBadRequest.PullRequest.State = utils.Stringify("open")
+	pullRequestWebhookBadRequest.PullRequest.Head.Sha = utils.Stringify("123456789qwertyuasdfghjzxcvbn")
+	pullRequestWebhookBadRequest.PullRequest.Base.Sha = utils.Stringify("lkjhgfdsoiuytrewqmnbvcxz12345")
+	pullRequestWebhookBadRequest.PullRequest.Base.Ref = utils.Stringify("develop")
+	pullRequestWebhookBadRequest.PullRequest.Body = utils.Stringify("Pull request Body")
 
 	var webhookOK webhook.Webhook
 	webhookOK.Type = utils.Stringify("pull_request")
@@ -592,15 +589,15 @@ func TestWebhook_ProcessPullRequestWebhookErrorSavingOnDB(t *testing.T) {
 
 	var pullRequestWebhook webhook.PullRequestWebhook
 	pullRequestWebhook.Number = 12345
-	pullRequestWebhook.Action = "opened"
-	pullRequestWebhook.Repository.FullName = "hbalmes/ci-cd_api"
-	pullRequestWebhook.Sender.Login = "hbalmes"
-	pullRequestWebhook.PullRequest.State = "open"
-	pullRequestWebhook.PullRequest.Head.Sha = "123456789qwertyuasdfghjzxcvbn"
-	pullRequestWebhook.PullRequest.Head.Ref = "feature/test"
-	pullRequestWebhook.PullRequest.Base.Sha = "lkjhgfdsoiuytrewqmnbvcxz12345"
-	pullRequestWebhook.PullRequest.Base.Ref = "develop"
-	pullRequestWebhook.PullRequest.Body = "Pull request Body"
+	pullRequestWebhook.Action = utils.Stringify("opened")
+	pullRequestWebhook.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestWebhook.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestWebhook.PullRequest.State = utils.Stringify("open")
+	pullRequestWebhook.PullRequest.Head.Sha = utils.Stringify("123456789qwertyuasdfghjzxcvbn")
+	pullRequestWebhook.PullRequest.Head.Ref = utils.Stringify("feature/test")
+	pullRequestWebhook.PullRequest.Base.Sha = utils.Stringify("lkjhgfdsoiuytrewqmnbvcxz12345")
+	pullRequestWebhook.PullRequest.Base.Ref = utils.Stringify("develop")
+	pullRequestWebhook.PullRequest.Body = utils.Stringify("Pull request Body")
 
 	var webhookOK webhook.Webhook
 	webhookOK.Type = utils.Stringify("pull_request")
@@ -693,13 +690,13 @@ func TestWebhook_ProcessPullRequestWebhookErrorSavingOnDB(t *testing.T) {
 
 		})
 	}
-}*/
+}
 
 func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 
 	type args struct {
 		payload *webhook.Status
-		config  models.Configuration
+		config  *models.Configuration
 	}
 
 	type clientsResult struct {
@@ -717,32 +714,32 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 		sqlConfigGetByError error
 		sqlInsertError      error
 		sqlInsertWHError    error
-		sqlDeleteError      error
-		config              models.Configuration
+		getConfigError      error
+		config              *models.Configuration
 		clientsResult       clientsResult
 		workflowCheckResult workflowCheckResult
 		savePullRequest     apierrors.ApiError
 	}
 
 	var allowedStatusWebhookSuccess webhook.Status
-	allowedStatusWebhookSuccess.Context = "workflow"
-	allowedStatusWebhookSuccess.Sha = "23456789qwertyuiasdfghjzxcvbn"
-	allowedStatusWebhookSuccess.State = "success"
-	allowedStatusWebhookSuccess.Sender.Login = "hbalmes"
-	allowedStatusWebhookSuccess.Repository.FullName = "hbalmes/ci-cd_api"
-	allowedStatusWebhookSuccess.Description = "Webhook description"
-	allowedStatusWebhookSuccess.TargetURL = "http://url-api.com"
-	allowedStatusWebhookSuccess.Name = "workflow"
+	allowedStatusWebhookSuccess.Context = utils.Stringify("workflow")
+	allowedStatusWebhookSuccess.Sha = utils.Stringify("23456789qwertyuiasdfghjzxcvbn")
+	allowedStatusWebhookSuccess.State = utils.Stringify("success")
+	allowedStatusWebhookSuccess.Sender.Login = utils.Stringify("hbalmes")
+	allowedStatusWebhookSuccess.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	allowedStatusWebhookSuccess.Description = utils.Stringify("Webhook description")
+	allowedStatusWebhookSuccess.TargetURL = utils.Stringify("http://url-api.com")
+	allowedStatusWebhookSuccess.Name = utils.Stringify("workflow")
 
 	var notAllowedStatusWebhookSuccess webhook.Status
-	notAllowedStatusWebhookSuccess.Sha = "23456789qwertyuiasdfghjzxcvbn"
-	notAllowedStatusWebhookSuccess.State = "success"
-	notAllowedStatusWebhookSuccess.Sender.Login = "hbalmes"
-	notAllowedStatusWebhookSuccess.Repository.FullName = "hbalmes/ci-cd_api"
-	notAllowedStatusWebhookSuccess.Description = "Webhook description"
-	notAllowedStatusWebhookSuccess.TargetURL = "http://url-api.com"
-	notAllowedStatusWebhookSuccess.Name = "lalalala"
-
+	notAllowedStatusWebhookSuccess.Sha = utils.Stringify("23456789qwertyuiasdfghjzxcvbn")
+	notAllowedStatusWebhookSuccess.State = utils.Stringify("success")
+	notAllowedStatusWebhookSuccess.Sender.Login = utils.Stringify("hbalmes")
+	notAllowedStatusWebhookSuccess.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	notAllowedStatusWebhookSuccess.Description = utils.Stringify("Webhook description")
+	notAllowedStatusWebhookSuccess.TargetURL = utils.Stringify("http://url-api.com")
+	notAllowedStatusWebhookSuccess.Name = utils.Stringify("lalalala")
+	notAllowedStatusWebhookSuccess.Context = utils.Stringify("lalalala")
 
 	var webhookOK webhook.Webhook
 	webhookOK.Type = utils.Stringify("pull_request")
@@ -765,8 +762,6 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 		RepositoryStatusChecks:           reqChecks,
 		WorkflowType:                     utils.Stringify("gitflow"),
 		CodeCoveragePullRequestThreshold: &codeCoverageThreadhold,
-		CreatedAt:                        time.Time{},
-		UpdatedAt:                        time.Time{},
 	}
 
 	tests := []struct {
@@ -775,7 +770,7 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 		wantErr bool
 		expects expects
 	}{
-		/*{
+		{
 			name: "test - Not allowed status webhook",
 			args: args{
 				payload: &notAllowedStatusWebhookSuccess,
@@ -845,12 +840,16 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 				sqlInsertError: gorm.ErrInvalidTransaction,
 			},
 			wantErr: true,
-		},*/
+		},
 		{
 			name: "test - Webhook save OK",
 			args: args{
 				payload: &allowedStatusWebhookSuccess,
-				config:  cicdConfigOK,
+				config:  &cicdConfigOK,
+			},
+			expects: expects{
+				sqlGetByError:    gorm.ErrRecordNotFound,
+				sqlInsertWHError: nil,
 			},
 			wantErr: false,
 		},
@@ -863,36 +862,24 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
 			githubClient := interfaces.NewMockGithubClient(ctrl)
 
-			gomock.InOrder(
-				sqlStorage.EXPECT().
-					GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(e interface{}, qry ...interface{}) *models.Configuration {
-						return &tt.expects.config
-					}).
-					Return(tt.expects.sqlGetByError).
-					AnyTimes(),
+			sqlStorage.EXPECT().
+				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(e interface{}, qry ...interface{}) *webhook.Webhook {
+					return &webhookOK
+				}).
+				Return(tt.expects.sqlGetByError).
+				AnyTimes()
 
-				sqlStorage.EXPECT().
-					Insert(gomock.Any()).
-					Return(tt.expects.sqlInsertError).
-					Times(1),
-
-				sqlStorage.EXPECT().
-					Delete(gomock.Any()).
-					Return(tt.expects.sqlDeleteError).
-					Times(1),
-
-				githubClient.EXPECT().
-					CreateStatus(gomock.Any(), gomock.Any()).
-					Return(tt.expects.clientsResult.githubClient).
-					Times(1),
-			)
+			sqlStorage.EXPECT().
+				Insert(gomock.Any()).
+				Return(tt.expects.sqlInsertError).
+				AnyTimes()
 
 			s := &Webhook{
 				SQL:          sqlStorage,
 				GithubClient: githubClient,
 			}
-			_, err := s.ProcessStatusWebhook(tt.args.payload)
+			_, err := s.ProcessStatusWebhook(tt.args.payload, tt.args.config)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Webhook.ProcessStatusWebhook() error = %v, wantErr %v", err, tt.wantErr)

@@ -7,6 +7,7 @@ package interfaces
 import (
 	gomock "github.com/golang/mock/gomock"
 	models "github.com/hbalmes/ci_cd-api/api/models"
+	apierrors "github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	reflect "reflect"
 )
 
@@ -34,18 +35,18 @@ func (m *MockConfigurationService) EXPECT() *MockConfigurationServiceMockRecorde
 }
 
 // Create mocks base method
-func (m *MockConfigurationService) Create(arg0 *models.PostRequestPayload) (*models.Configuration, error) {
+func (m *MockConfigurationService) Create(r *models.PostRequestPayload) (*models.Configuration, apierrors.ApiError) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", arg0)
+	ret := m.ctrl.Call(m, "Create", r)
 	ret0, _ := ret[0].(*models.Configuration)
-	ret1, _ := ret[1].(error)
+	ret1, _ := ret[1].(apierrors.ApiError)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create
-func (mr *MockConfigurationServiceMockRecorder) Create(arg0 interface{}) *gomock.Call {
+func (mr *MockConfigurationServiceMockRecorder) Create(r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockConfigurationService)(nil).Create), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockConfigurationService)(nil).Create), r)
 }
 
 // Get mocks base method

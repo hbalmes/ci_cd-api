@@ -8,6 +8,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	models "github.com/hbalmes/ci_cd-api/api/models"
 	webhook "github.com/hbalmes/ci_cd-api/api/models/webhook"
+	apierrors "github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	reflect "reflect"
 )
 
@@ -35,10 +36,10 @@ func (m *MockWorkflowService) EXPECT() *MockWorkflowServiceMockRecorder {
 }
 
 // SetWorkflow mocks base method
-func (m *MockWorkflowService) SetWorkflow(config *models.WorkflowConfig) error {
+func (m *MockWorkflowService) SetWorkflow(config *models.Configuration) apierrors.ApiError {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWorkflow", config)
-	ret0, _ := ret[0].(error)
+	ret0, _ := ret[0].(apierrors.ApiError)
 	return ret0
 }
 

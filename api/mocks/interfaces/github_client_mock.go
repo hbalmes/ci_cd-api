@@ -36,11 +36,11 @@ func (m *MockGithubClient) EXPECT() *MockGithubClientMockRecorder {
 }
 
 // GetBranchInformation mocks base method
-func (m *MockGithubClient) GetBranchInformation(config *models.Configuration, branchName string) (*models.GetBranchResponse, error) {
+func (m *MockGithubClient) GetBranchInformation(config *models.Configuration, branchName string) (*models.GetBranchResponse, apierrors.ApiError) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBranchInformation", config, branchName)
 	ret0, _ := ret[0].(*models.GetBranchResponse)
-	ret1, _ := ret[1].(error)
+	ret1, _ := ret[1].(apierrors.ApiError)
 	return ret0, ret1
 }
 
@@ -51,10 +51,10 @@ func (mr *MockGithubClientMockRecorder) GetBranchInformation(config, branchName 
 }
 
 // CreateGithubRef mocks base method
-func (m *MockGithubClient) CreateGithubRef(config *models.Configuration, branchConfig *models.Branch, workflowConfig *models.WorkflowConfig) error {
+func (m *MockGithubClient) CreateGithubRef(config *models.Configuration, branchConfig *models.Branch, workflowConfig *models.WorkflowConfig) apierrors.ApiError {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateGithubRef", config, branchConfig, workflowConfig)
-	ret0, _ := ret[0].(error)
+	ret0, _ := ret[0].(apierrors.ApiError)
 	return ret0
 }
 
@@ -65,10 +65,10 @@ func (mr *MockGithubClientMockRecorder) CreateGithubRef(config, branchConfig, wo
 }
 
 // ProtectBranch mocks base method
-func (m *MockGithubClient) ProtectBranch(config *models.Configuration, branchConfig *models.Branch) error {
+func (m *MockGithubClient) ProtectBranch(config *models.Configuration, branchConfig *models.Branch) apierrors.ApiError {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ProtectBranch", config, branchConfig)
-	ret0, _ := ret[0].(error)
+	ret0, _ := ret[0].(apierrors.ApiError)
 	return ret0
 }
 
@@ -79,10 +79,10 @@ func (mr *MockGithubClientMockRecorder) ProtectBranch(config, branchConfig inter
 }
 
 // SetDefaultBranch mocks base method
-func (m *MockGithubClient) SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) error {
+func (m *MockGithubClient) SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) apierrors.ApiError {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetDefaultBranch", config, workflowConfig)
-	ret0, _ := ret[0].(error)
+	ret0, _ := ret[0].(apierrors.ApiError)
 	return ret0
 }
 
@@ -104,4 +104,18 @@ func (m *MockGithubClient) CreateStatus(config *models.Configuration, statusWH *
 func (mr *MockGithubClientMockRecorder) CreateStatus(config, statusWH interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateStatus", reflect.TypeOf((*MockGithubClient)(nil).CreateStatus), config, statusWH)
+}
+
+// CreateBranch mocks base method
+func (m *MockGithubClient) CreateBranch(config *models.Configuration, branchConfig *models.Branch, sha string) apierrors.ApiError {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateBranch", config, branchConfig, sha)
+	ret0, _ := ret[0].(apierrors.ApiError)
+	return ret0
+}
+
+// CreateBranch indicates an expected call of CreateBranch
+func (mr *MockGithubClientMockRecorder) CreateBranch(config, branchConfig, sha interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBranch", reflect.TypeOf((*MockGithubClient)(nil).CreateBranch), config, branchConfig, sha)
 }

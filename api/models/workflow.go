@@ -1,10 +1,10 @@
 package models
 
 type WorkflowConfig struct {
-	Name          string `json:"name"`
+	Name          *string `json:"name"`
 	Description   Description
-	Detail        string `json:"detail"`
-	DefaultBranch string `json:"default_branch"`
+	Detail        *string `json:"detail"`
+	DefaultBranch *string `json:"default_branch"`
 }
 
 type Description struct {
@@ -14,7 +14,7 @@ type Description struct {
 type Branch struct {
 	Requirements Requirements
 	Stable       bool   `json:"stable"`
-	Name         string `json:"name"`
+	Name         *string `json:"name"`
 	Releasable   bool   `json:"releaseable"`
 	StartWith    bool   `json:"start_with"`
 }

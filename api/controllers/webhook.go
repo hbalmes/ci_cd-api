@@ -17,6 +17,7 @@ const (
 
 type Webhook struct {
 	Service services.WebhookService
+	ConfService services.ConfigurationService
 }
 
 //NewWebhookController initializes a WebhookController
@@ -48,7 +49,24 @@ func (c *Webhook) CreateWebhook(ginContext *gin.Context) {
 				return
 			}
 
-			whook, err := c.Service.ProcessStatusWebhook(&statusWH)
+			//Validates that the repository has a ci cd configuration
+			config, err := c.ConfService.Get(*statusWH.Repository.FullName)
+
+			if err != nil {
+				ginContext.JSON(
+					http.StatusBadRequest,
+					apierrors.NewBadRequestApiError("invalid status webhook payload"),
+				)
+			}
+
+			if config != nil {
+				ginContext.JSON(
+					http.StatusBadRequest,
+					apierrors.NewBadRequestApiError("invalid status webhook payload"),
+				)
+			}
+
+			whook, err := c.Service.ProcessStatusWebhook(&statusWH, config)
 
 			if err != nil {
 				ginContext.JSON(
