@@ -1,12 +1,15 @@
 package configs
 
-import "github.com/hbalmes/ci_cd-api/api/models"
+import (
+	"github.com/hbalmes/ci_cd-api/api/models"
+	"github.com/hbalmes/ci_cd-api/api/utils"
+)
 
 func GetWorkflowConfiguration(configuration *models.Configuration) *models.WorkflowConfig {
 	var workflowConfig models.WorkflowConfig
 
-	switch *configuration.WorkflowType {
-	case "gitflow":
+	switch configuration.WorkflowType {
+	case utils.Stringify("gitflow"):
 		workflowConfig = *GetGitflowConfig(configuration)
 	default:
 		workflowConfig = *GetGitflowConfig(configuration)
@@ -34,7 +37,7 @@ func GetGitflowConfig(configuration *models.Configuration) *models.WorkflowConfi
 	masterBranchConfig := models.Branch{
 		Requirements: masterRequirements,
 		Stable:       true,
-		Name:         "master",
+		Name:         utils.Stringify("master"),
 		Releasable:   true,
 		StartWith:    false,
 	}
@@ -55,7 +58,7 @@ func GetGitflowConfig(configuration *models.Configuration) *models.WorkflowConfi
 	developBranchConfig := models.Branch{
 		Requirements: developRequirements,
 		Stable:       true,
-		Name:         "develop",
+		Name:         utils.Stringify("develop"),
 		Releasable:   false,
 		StartWith:    false,
 	}
@@ -70,22 +73,22 @@ func GetGitflowConfig(configuration *models.Configuration) *models.WorkflowConfi
 	releaseWorkflowRequiredStatusChecks.Contexts = GetRequiredStatusCheck(configuration)
 
 	releaseRequirements.EnforceAdmins = true
-	releaseRequirements.AcceptPrFrom = []string{"bugfix/", "hotfix/"}
+	releaseRequirements.AcceptPrFrom = []string{"hotfix/"}
 	releaseRequirements.RequiredStatusChecks = releaseWorkflowRequiredStatusChecks
 
 	releaseBranchConfig := models.Branch{
-		Requirements: developRequirements,
+		Requirements: releaseRequirements,
 		Stable:       true,
-		Name:         "develop",
+		Name:         utils.Stringify("release/"),
 		Releasable:   false,
-		StartWith:    false,
+		StartWith:    true,
 	}
 
 	//Build the gitflow configuration
 
 	gfConfig := models.WorkflowConfig{
-		Name:          "gitflow",
-		DefaultBranch: defaultBranch,
+		Name:          utils.Stringify("gitflow"),
+		DefaultBranch: utils.Stringify(defaultBranch),
 		Description: models.Description{
 			Branches: []models.Branch{
 				masterBranchConfig,
@@ -93,7 +96,7 @@ func GetGitflowConfig(configuration *models.Configuration) *models.WorkflowConfi
 				releaseBranchConfig,
 			},
 		},
-		Detail: "Workflow Description",
+		Detail: utils.Stringify("Workflow Description"),
 	}
 
 	return &gfConfig

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/hbalmes/ci_cd-api/api/models/webhook"
 	"github.com/hbalmes/ci_cd-api/api/services"
 	"github.com/hbalmes/ci_cd-api/api/services/storage"
 	"github.com/hbalmes/ci_cd-api/api/utils"
@@ -16,6 +17,7 @@ const (
 
 type Webhook struct {
 	Service services.WebhookService
+	ConfService services.ConfigurationService
 }
 
 //NewWebhookController initializes a WebhookController
@@ -33,26 +35,114 @@ func NewWebhookController(sql storage.SQLStorage) *Webhook {
 func (c *Webhook) CreateWebhook(ginContext *gin.Context) {
 
 	//Check if 'X-Github-Event' header is present
-	if event, deliveryID := getGetGithubHeaders(ginContext); event != "" && deliveryID != "" {
+	if webhookEvent, deliveryID := getGetGithubHeaders(ginContext); webhookEvent != "" && deliveryID != "" {
 
-		whook, createWHErr := c.Service.CreateWebhook(ginContext, event)
-		if createWHErr != nil {
+		switch webhookEvent {
+		case "status":
+			var statusWH webhook.Status
+
+			if err := ginContext.BindJSON(&statusWH); err != nil {
+				ginContext.JSON(
+					http.StatusBadRequest,
+					apierrors.NewBadRequestApiError("invalid status webhook payload"),
+				)
+				return
+			}
+
+			//Validates that the repository has a ci cd configuration
+			config, err := c.ConfService.Get(*statusWH.Repository.FullName)
+
+			if err != nil {
+				ginContext.JSON(
+					http.StatusBadRequest,
+					apierrors.NewBadRequestApiError("invalid status webhook payload"),
+				)
+			}
+
+			if config != nil {
+				ginContext.JSON(
+					http.StatusBadRequest,
+					apierrors.NewBadRequestApiError("invalid status webhook payload"),
+				)
+			}
+
+			whook, err := c.Service.ProcessStatusWebhook(&statusWH, config)
+
+			if err != nil {
+				ginContext.JSON(
+					http.StatusInternalServerError,
+					err,
+				)
+				return
+			}
+
+			ginContext.JSON(http.StatusOK, whook.Marshall())
+			return
+
+		case "pull_request_review":
+
+			var pullRequestReviewWH webhook.PullRequestReviewWebhook
+
+			if err := ginContext.BindJSON(&pullRequestReviewWH); err != nil {
+				ginContext.JSON(
+					http.StatusBadRequest,
+					apierrors.NewBadRequestApiError("invalid pull request review webhook payload"),
+				)
+				return
+			}
+
+			whook, err := c.Service.ProcessPullRequestReviewWebhook(&pullRequestReviewWH)
+
+			if err != nil {
+				ginContext.JSON(
+					http.StatusInternalServerError,
+					err,
+				)
+				return
+			}
+
+			ginContext.JSON(http.StatusOK, whook.Marshall())
+			return
+
+		case "pull_request":
+
+			var pullRequestWH webhook.PullRequestWebhook
+			if err := ginContext.BindJSON(&pullRequestWH); err != nil {
+				ginContext.JSON(
+					http.StatusBadRequest,
+					apierrors.NewBadRequestApiError("invalid pull_request webhook payload"),
+				)
+				return
+			}
+
+			whook, err := c.Service.ProcessPullRequestWebhook(&pullRequestWH)
+
+			if err != nil {
+				ginContext.JSON(
+					http.StatusInternalServerError,
+					err,
+				)
+				return
+			}
+
+			ginContext.JSON(http.StatusOK, whook.Marshall())
+			return
+
+		default:
 			ginContext.JSON(
-				createWHErr.Status(),
-				createWHErr,
+				http.StatusBadRequest,
+				apierrors.NewBadRequestApiError("Event not supported yet"),
 			)
 			return
 		}
-
-		ginContext.JSON(http.StatusOK, whook.Marshall())
 
 	} else {
 		ginContext.JSON(
 			http.StatusBadRequest,
 			apierrors.NewBadRequestApiError("invalid headers"),
 		)
+		return
 	}
-
 }
 
 func getGetGithubHeaders(context utils.HTTPContext) (string, string) {

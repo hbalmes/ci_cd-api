@@ -27,3 +27,4 @@ _testmain.go
 .vscode/
 code.tar
 coverage/
+coverage.txt

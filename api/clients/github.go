@@ -6,11 +6,11 @@ package clients
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/hbalmes/ci_cd-api/api/configs"
 	"github.com/hbalmes/ci_cd-api/api/models"
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
+	"github.com/hbalmes/ci_cd-api/api/utils"
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/mercadolibre/golang-restclient/rest"
 	"net/http"
@@ -18,11 +18,12 @@ import (
 )
 
 type GithubClient interface {
-	GetBranchInformation(config *models.Configuration, branchName string) (*models.GetBranchResponse, error)
-	CreateGithubRef(config *models.Configuration, branchConfig *models.Branch, workflowConfig *models.WorkflowConfig) error
-	ProtectBranch(config *models.Configuration, branchConfig *models.Branch) error
-	SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) error
+	GetBranchInformation(config *models.Configuration, branchName string) (*models.GetBranchResponse, apierrors.ApiError)
+	CreateGithubRef(config *models.Configuration, branchConfig *models.Branch, workflowConfig *models.WorkflowConfig) apierrors.ApiError
+	ProtectBranch(config *models.Configuration, branchConfig *models.Branch) apierrors.ApiError
+	SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) apierrors.ApiError
 	CreateStatus(config *models.Configuration, statusWH *webhook.Status) apierrors.ApiError
+	CreateBranch(config *models.Configuration, branchConfig *models.Branch, sha string) apierrors.ApiError
 }
 
 type githubClient struct {
@@ -32,7 +33,7 @@ type githubClient struct {
 func NewGithubClient() GithubClient {
 	hs := make(http.Header)
 	hs.Set("cache-control", "no-cache")
-	hs.Set("Authorization", "token <<TOKEN>>")
+	hs.Set("Authorization", "token b714abf4c1859fd70c1184bdd28069b064c00af3")
 	hs.Set("Accept", "application/vnd.github.luke-cage-preview+json")
 
 	return &githubClient{
@@ -57,26 +58,25 @@ type ghGetBranchResponse struct {
 
 //Gets a repository branch info
 //This perform a GET request to Github api using
-func (c *githubClient) GetBranchInformation(config *models.Configuration, branchName string) (*models.GetBranchResponse, error) {
+func (c *githubClient) GetBranchInformation(config *models.Configuration, branchName string) (*models.GetBranchResponse, apierrors.ApiError) {
 
 	if config.RepositoryName == nil || config.RepositoryOwner == nil || branchName == "" {
-		err := errors.New("invalid github body params")
-		return nil, err
+		return nil, apierrors.NewBadRequestApiError("invalid github body params")
 	}
 
 	response := c.Client.Get(fmt.Sprintf("/repos/%s/%s/branches/%s", *config.RepositoryOwner, *config.RepositoryName, branchName))
 
 	if response.Err() != nil {
-		return nil, response.Err()
+		return nil, apierrors.NewInternalServerApiError("Something went wrong getting branch information", response.Err())
+	}
+
+	if response.StatusCode() != http.StatusOK {
+		return nil, apierrors.NewInternalServerApiError("error getting repository branch", response.Err())
 	}
 
 	var branchInfo models.GetBranchResponse
 	if err := json.Unmarshal(response.Bytes(), &branchInfo); err != nil {
-		return nil, errors.New("error binding github branch response")
-	}
-
-	if response.StatusCode() != http.StatusOK {
-		return nil, errors.New("error getting repository branch")
+		return nil, apierrors.NewBadRequestApiError("error binding github branch response")
 	}
 
 	return &branchInfo, nil
@@ -84,11 +84,10 @@ func (c *githubClient) GetBranchInformation(config *models.Configuration, branch
 
 //Protects the branch from pushs by following the workflow configuration
 //This perform a PUT request to Github api
-func (c *githubClient) ProtectBranch(config *models.Configuration, branchConfig *models.Branch) error {
+func (c *githubClient) ProtectBranch(config *models.Configuration, branchConfig *models.Branch) apierrors.ApiError {
 
-	if branchConfig.Name == "" {
-		err := errors.New("invalid branch protection body params")
-		return err
+	if branchConfig.Name == nil {
+		return apierrors.NewBadRequestApiError("invalid branch protection body params")
 	}
 
 	body := map[string]interface{}{
@@ -98,17 +97,17 @@ func (c *githubClient) ProtectBranch(config *models.Configuration, branchConfig 
 		"restrictions":                  nil,
 	}
 
-	response := c.Client.Put(fmt.Sprintf("/repos/%s/%s/branches/%s/protection", *config.RepositoryOwner, *config.RepositoryName, branchConfig.Name), body)
+	response := c.Client.Put(fmt.Sprintf("/repos/%s/%s/branches/%p/protection", *config.RepositoryOwner, *config.RepositoryName, branchConfig.Name), body)
 
 	if response.Err() != nil {
-		return response.Err()
+		return apierrors.NewInternalServerApiError("Something went wrong protecting branch", response.Err())
 	}
 
 	if response.StatusCode() != http.StatusOK && response.StatusCode() != http.StatusCreated {
 		if response.StatusCode() == http.StatusNotFound {
-			return errors.New("branch not found")
+			return apierrors.NewInternalServerApiError("branch not found", response.Err())
 		}
-		return errors.New(fmt.Sprintf("error protecting branch - status: %d", response.StatusCode()))
+		return apierrors.NewInternalServerApiError(fmt.Sprintf("error protecting branch - status: %d", response.StatusCode()), response.Err())
 	}
 
 	return nil
@@ -116,14 +115,13 @@ func (c *githubClient) ProtectBranch(config *models.Configuration, branchConfig 
 
 //Create a new reference, in this case a branch
 //This perform a POST request to Github api
-func (c *githubClient) CreateBranch(config *models.Configuration, branchConfig *models.Branch, sha string) error {
+func (c *githubClient) CreateBranch(config *models.Configuration, branchConfig *models.Branch, sha string) apierrors.ApiError {
 
-	if branchConfig.Name == "" || config.RepositoryOwner == nil || config.RepositoryName == nil || sha == "" {
-		err := errors.New("invalid body params")
-		return err
+	if branchConfig.Name == nil || config.RepositoryOwner == nil || config.RepositoryName == nil || sha == "" {
+		return apierrors.NewBadRequestApiError("invalid body params")
 	}
 
-	ref := fmt.Sprintf("refs/heads/%s", branchConfig.Name)
+	ref := fmt.Sprintf("refs/heads/%p", branchConfig.Name)
 
 	body := map[string]interface{}{
 		"ref": ref,
@@ -133,11 +131,11 @@ func (c *githubClient) CreateBranch(config *models.Configuration, branchConfig *
 	response := c.Client.Post(fmt.Sprintf("/repos/%s/%s/git/refs", *config.RepositoryOwner, *config.RepositoryName), body)
 
 	if response.Err() != nil {
-		return response.Err()
+		return apierrors.NewInternalServerApiError("Something went wrong creating a branch", response.Err())
 	}
 
 	if response.StatusCode() != http.StatusOK && response.StatusCode() != http.StatusCreated {
-		return errors.New(fmt.Sprintf("error creating a branch - status: %d", response.StatusCode()))
+		return apierrors.NewInternalServerApiError(fmt.Sprintf("error creating a branch - status: %d", response.StatusCode()), response.Err())
 	}
 
 	return nil
@@ -145,21 +143,20 @@ func (c *githubClient) CreateBranch(config *models.Configuration, branchConfig *
 
 //Create a new reference on github. First we get the information needed to make the creation and then the creation itself.
 //This perform a GetBranchInformation and CreateBranch
-func (c *githubClient) CreateGithubRef(config *models.Configuration, branchConfig *models.Branch, workflowConfig *models.WorkflowConfig) error {
+func (c *githubClient) CreateGithubRef(config *models.Configuration, branchConfig *models.Branch, workflowConfig *models.WorkflowConfig) apierrors.ApiError {
 
-	if branchConfig.Name == "" || config.RepositoryOwner == nil || config.RepositoryName == nil {
-		err := errors.New("invalid body params")
-		return err
+	if branchConfig.Name == nil || config.RepositoryOwner == nil || config.RepositoryName == nil {
+		return apierrors.NewBadRequestApiError("invalid body params")
 	}
 
 	//First gets SHA necessary to initialise the new branch or reference
 	initialBranch := workflowConfig.DefaultBranch
 
 	if branchConfig.Name == workflowConfig.DefaultBranch {
-		initialBranch = "master"
+		initialBranch = utils.Stringify("master")
 	}
 
-	branchInfo, getBranchError := c.GetBranchInformation(config, initialBranch)
+	branchInfo, getBranchError := c.GetBranchInformation(config, *initialBranch)
 
 	if getBranchError != nil {
 		return getBranchError
@@ -176,11 +173,10 @@ func (c *githubClient) CreateGithubRef(config *models.Configuration, branchConfi
 
 //SetDefaultBranch updates the default branch of repository.
 //This is the branch from which new branches should start
-func (c *githubClient) SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) error {
+func (c *githubClient) SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) apierrors.ApiError {
 
-	if config.RepositoryOwner == nil || config.RepositoryName == nil || workflowConfig.DefaultBranch == "" {
-		err := errors.New("invalid body params")
-		return err
+	if config.RepositoryOwner == nil || config.RepositoryName == nil || *workflowConfig.DefaultBranch == "" {
+		return apierrors.NewBadRequestApiError("invalid body params")
 	}
 
 	body := map[string]interface{}{
@@ -191,11 +187,11 @@ func (c *githubClient) SetDefaultBranch(config *models.Configuration, workflowCo
 	response := c.Client.Post(fmt.Sprintf("/repos/%s/%s", *config.RepositoryOwner, *config.RepositoryName), body)
 
 	if response.Err() != nil {
-		return response.Err()
+		return apierrors.NewInternalServerApiError("Something went wrong setting default branch", response.Err())
 	}
 
 	if response.StatusCode() != http.StatusOK && response.StatusCode() != http.StatusCreated {
-		return errors.New(fmt.Sprintf("error updating default branch - status: %d", response.StatusCode()))
+		return apierrors.NewInternalServerApiError(fmt.Sprintf("error updating default branch - status: %d", response.StatusCode()), response.Err())
 	}
 
 	return nil
@@ -205,7 +201,7 @@ func (c *githubClient) SetDefaultBranch(config *models.Configuration, workflowCo
 //This perform a POST request
 func (c *githubClient) CreateStatus(config *models.Configuration, statusWH *webhook.Status) apierrors.ApiError {
 
-	if config.RepositoryOwner == nil || config.RepositoryName == nil || statusWH.Sha == "" || statusWH.Context == "" {
+	if config.RepositoryOwner == nil || config.RepositoryName == nil || statusWH.Sha == nil || statusWH.Context == nil {
 		return apierrors.NewBadRequestApiError("invalid body params")
 	}
 
@@ -216,7 +212,7 @@ func (c *githubClient) CreateStatus(config *models.Configuration, statusWH *webh
 		"context":     statusWH.Context,
 	}
 
-	response := c.Client.Post(fmt.Sprintf("/repos/%s/%s/statuses/%s", *config.RepositoryOwner, *config.RepositoryName, statusWH.Sha), body)
+	response := c.Client.Post(fmt.Sprintf("/repos/%s/%s/statuses/%p", *config.RepositoryOwner, *config.RepositoryName, statusWH.Sha), body)
 
 	if response.Err() != nil {
 		return apierrors.NewInternalServerApiError("RestClient Error creating new status", response.Err())
