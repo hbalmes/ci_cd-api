@@ -33,6 +33,7 @@ func GetGitflowConfig(configuration *models.Configuration) *models.WorkflowConfi
 	masterRequirements.EnforceAdmins = true
 	masterRequirements.AcceptPrFrom = []string{"release/", "hotfix/"}
 	masterRequirements.RequiredStatusChecks = masterWorkflowRequiredStatusChecks
+	masterRequirements.ProtectAtStartup = true
 
 	masterBranchConfig := models.Branch{
 		Requirements: masterRequirements,
@@ -54,6 +55,7 @@ func GetGitflowConfig(configuration *models.Configuration) *models.WorkflowConfi
 	developRequirements.EnforceAdmins = true
 	developRequirements.AcceptPrFrom = []string{"feature/", "fix/", "enhancement/", "bugfix/"}
 	developRequirements.RequiredStatusChecks = developWorkflowRequiredStatusChecks
+	developRequirements.ProtectAtStartup = true
 
 	developBranchConfig := models.Branch{
 		Requirements: developRequirements,
@@ -75,6 +77,7 @@ func GetGitflowConfig(configuration *models.Configuration) *models.WorkflowConfi
 	releaseRequirements.EnforceAdmins = true
 	releaseRequirements.AcceptPrFrom = []string{"hotfix/"}
 	releaseRequirements.RequiredStatusChecks = releaseWorkflowRequiredStatusChecks
+	releaseRequirements.ProtectAtStartup = false
 
 	releaseBranchConfig := models.Branch{
 		Requirements: releaseRequirements,

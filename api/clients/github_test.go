@@ -533,7 +533,8 @@ func Test_githubClient_CreateBranch(t *testing.T) {
 	}
 }
 
-/*func Test_githubClient_CreateGithubRef(t *testing.T) {
+func Test_githubClient_CreateGithubRef(t *testing.T) {
+
 	type restPostResponse struct {
 		mockError      error
 		mockStatusCode int
@@ -580,7 +581,7 @@ func Test_githubClient_CreateBranch(t *testing.T) {
 	}
 
 	var masterBranchConfig models.Branch
-	//var branchConfig models.Branch
+	var branchConfig models.Branch
 
 	workflowConfig := configs.GetGitflowConfig(&cicdConfigOK)
 
@@ -606,6 +607,14 @@ func Test_githubClient_CreateBranch(t *testing.T) {
 		DefaultBranch: utils.Stringify("master"),
 	}
 
+	branchInfo := models.GetBranchResponse{
+		Name: "master",
+		Commit: struct {
+			Sha string `json:"sha"`
+		}{Sha: "234567qwertasdfghzxcvb"},
+		Protected: false,
+	}
+
 	tests := []struct {
 		name             string
 		args             args
@@ -624,61 +633,65 @@ func Test_githubClient_CreateBranch(t *testing.T) {
 			expects: expects{
 				error: apierrors.NewBadRequestApiError("invalid body params"),
 			},
-			restResponse: restResponse{},
 			wantErr:      true,
 		},
 		{
-			name: "rest client error getting the branch information",
-			restResponse: restResponse{
-				mockError: errors.New("some error"),
-			},
-			args: args{
-				config:         &cicdConfigOK,
-				branchConfig:   &masterBranchConfig,
-				workflowConfig: workflowConfig,
-			},
-			expects: expects{
-				error: apierrors.NewInternalServerApiError("Something went wrong getting branch information", errors.New("some error")),
-			},
-			wantErr: true,
-		},
-		{
-			name: "Bad request creating branch",
-			restGetResponse: restGetResponse{
-				mockStatusCode: 200,
-				mockBytes: utils.GetBytes(map[string]interface{}{
-					"name":      "feature/pepe",
-					"commit":    map[string]interface{}{"sha": "1245678qwertyuasdfghzxcvb"},
-					"protected": false,
-				}),
-			},
-			restPostResponse: restPostResponse{
-				mockStatusCode: 201,
-				mockBytes: utils.GetBytes(map[string]interface{}{
-					"name":      "feature/pepe",
-					"commit":    map[string]interface{}{"sha": "1245678qwertyuasdfghzxcvb"},
-					"protected": false,
-				}),
-			},
+			name: "feature workflow - default branch master - failure getting branch info",
 			args: args{
 				config:         &cicdConfigOK,
 				branchConfig:   &masterBranchConfig,
 				workflowConfig: &featureWorkflowConfig,
 			},
+			restGetResponse: restGetResponse{
+				mockError:      nil,
+				mockStatusCode: 200,
+				mockBytes: utils.GetBytes(map[string]interface{}{
+					"name": 1,
+				}),
+			},
 			expects: expects{
-				error: apierrors.NewInternalServerApiError("error getting repository branch", nil),
+				error: apierrors.NewBadRequestApiError("error binding github branch response"),
+			},
+			wantErr:      true,
+		},
+		{
+			name: "failure creating branch",
+			args: args{
+				config:         &cicdConfigOK,
+				branchConfig:   &masterBranchConfig,
+				workflowConfig: &featureWorkflowConfig,
+			},
+			restGetResponse: restGetResponse{
+				mockError:      nil,
+				mockStatusCode: 200,
+				mockBytes:      utils.GetBytes(branchInfo),
+			},
+			restPostResponse: restPostResponse{
+				mockError:      nil,
+				mockStatusCode: 400,
+				mockBytes:      utils.GetBytes(branchInfo),
+			},
+			expects: expects{
+				error: apierrors.NewInternalServerApiError("error creating a branch - status: 400", nil),
 			},
 			wantErr: true,
 		},
 		{
-			name: "branch created successfully",
-			restResponse: restResponse{
-				mockStatusCode: 201,
-			},
+			name: "ref created successfully",
 			args: args{
 				config:         &cicdConfigOK,
 				branchConfig:   &masterBranchConfig,
-				workflowConfig: workflowConfig,
+				workflowConfig: &featureWorkflowConfig,
+			},
+			restGetResponse: restGetResponse{
+				mockError:      nil,
+				mockStatusCode: 200,
+				mockBytes:      utils.GetBytes(branchInfo),
+			},
+			restPostResponse: restPostResponse{
+				mockError:      nil,
+				mockStatusCode: 201,
+				mockBytes:      utils.GetBytes(branchInfo),
 			},
 			expects: expects{
 				error: nil,
@@ -730,16 +743,16 @@ func Test_githubClient_CreateBranch(t *testing.T) {
 				EXPECT().
 				Bytes().
 				Return(tt.restPostResponse.mockBytes).
-				Times(1)
-
-			client.EXPECT().
-				Post(gomock.Any(), gomock.Any()).
-				Return(postResponse).
 				AnyTimes()
 
 			client.EXPECT().
 				Get(gomock.Any()).
 				Return(getResponse).
+				AnyTimes()
+
+			client.EXPECT().
+				Post(gomock.Any(), gomock.Any()).
+				Return(postResponse).
 				AnyTimes()
 
 			c := &githubClient{
@@ -751,4 +764,4 @@ func Test_githubClient_CreateBranch(t *testing.T) {
 			}
 		})
 	}
-}*/
+}

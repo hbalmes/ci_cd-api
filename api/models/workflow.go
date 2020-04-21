@@ -25,6 +25,7 @@ type Requirements struct {
 	RequiredStatusChecks       RequiredStatusChecks
 	Restriction                interface{} `json:"restriction"`
 	EnforceAdmins              bool        `json:"enforce_admins"`
+	ProtectAtStartup           bool        `json:"protect_at_startup"`
 }
 
 type RequiredPullRequestReviews struct {

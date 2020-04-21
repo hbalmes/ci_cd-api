@@ -33,7 +33,7 @@ type githubClient struct {
 func NewGithubClient() GithubClient {
 	hs := make(http.Header)
 	hs.Set("cache-control", "no-cache")
-	hs.Set("Authorization", "token b714abf4c1859fd70c1184bdd28069b064c00af3")
+	hs.Set("Authorization", "token 79476df2e0c834810c237b3bda8e78ebc0bc7bca")
 	hs.Set("Accept", "application/vnd.github.luke-cage-preview+json")
 
 	return &githubClient{
@@ -97,7 +97,7 @@ func (c *githubClient) ProtectBranch(config *models.Configuration, branchConfig 
 		"restrictions":                  nil,
 	}
 
-	response := c.Client.Put(fmt.Sprintf("/repos/%s/%s/branches/%p/protection", *config.RepositoryOwner, *config.RepositoryName, branchConfig.Name), body)
+	response := c.Client.Put(fmt.Sprintf("/repos/%s/%s/branches/%s/protection", *config.RepositoryOwner, *config.RepositoryName, *branchConfig.Name), body)
 
 	if response.Err() != nil {
 		return apierrors.NewInternalServerApiError("Something went wrong protecting branch", response.Err())
@@ -121,14 +121,16 @@ func (c *githubClient) CreateBranch(config *models.Configuration, branchConfig *
 		return apierrors.NewBadRequestApiError("invalid body params")
 	}
 
-	ref := fmt.Sprintf("refs/heads/%p", branchConfig.Name)
+	ref := utils.Stringify(fmt.Sprintf("refs/heads/%s", *branchConfig.Name))
 
 	body := map[string]interface{}{
 		"ref": ref,
 		"sha": sha,
 	}
 
-	response := c.Client.Post(fmt.Sprintf("/repos/%s/%s/git/refs", *config.RepositoryOwner, *config.RepositoryName), body)
+	url := fmt.Sprintf("/repos/%s/%s/git/refs", *config.RepositoryOwner, *config.RepositoryName)
+
+	response := c.Client.Post(url, body)
 
 	if response.Err() != nil {
 		return apierrors.NewInternalServerApiError("Something went wrong creating a branch", response.Err())
