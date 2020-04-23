@@ -34,7 +34,7 @@ func (c *Configuration) SetWorkflow(config *models.Configuration) apierrors.ApiE
 
 	//Protect stable branches configured on the workflow
 	for _, branch := range workflowBranchesList {
-		if branch.Stable {
+		if branch.Stable && branch.Requirements.ProtectAtStartup {
 			//Protect the branch
 			bpError := c.GithubClient.ProtectBranch(config, &branch)
 
