@@ -177,7 +177,7 @@ func (c *githubClient) CreateGithubRef(config *models.Configuration, branchConfi
 //This is the branch from which new branches should start
 func (c *githubClient) SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) apierrors.ApiError {
 
-	if config.RepositoryOwner == nil || config.RepositoryName == nil || *workflowConfig.DefaultBranch == "" {
+	if config.RepositoryOwner == nil || config.RepositoryName == nil || workflowConfig.DefaultBranch == nil {
 		return apierrors.NewBadRequestApiError("invalid body params")
 	}
 

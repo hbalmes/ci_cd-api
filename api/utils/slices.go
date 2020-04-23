@@ -13,11 +13,11 @@ func ContainsStatusChecks(s []models.RequireStatusCheck, e string) bool {
 }
 
 //Returns if a slice of string contains an string
-func StringContains(s []string, e string) bool {
+/*func StringContains(s []string, e string) bool {
 	for _, a := range s {
 		if a == e {
 			return true
 		}
 	}
 	return false
-}
+}*/
