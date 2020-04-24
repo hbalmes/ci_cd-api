@@ -127,8 +127,11 @@ func (s *Configuration) Delete(id string) error {
 		return err
 	}
 
-	//Unset Workflow
-	//TODO: Desproteger de acuerdo al wf que tiene configurado
+	unsetWorkflowError := s.UnsetWorkflow(cf)
+
+	if unsetWorkflowError != nil {
+		return unsetWorkflowError
+	}
 
 	//Delete from configurations DB
 	if sqlErr := s.SQL.Delete(cf); sqlErr != nil {

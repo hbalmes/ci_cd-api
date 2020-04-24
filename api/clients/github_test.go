@@ -1082,3 +1082,180 @@ func Test_githubClient_CreateStatus(t *testing.T) {
 		})
 	}
 }
+
+func Test_githubClient_UnprotectBranch(t *testing.T) {
+	type restResponse struct {
+		mockError      error
+		mockStatusCode int
+		mockBytes      []byte
+	}
+
+	type args struct {
+		config       *models.Configuration
+		body         map[string]interface{}
+		branchConfig *models.Branch
+	}
+
+	type expects struct {
+		error apierrors.ApiError
+		want  *models.GetBranchResponse
+	}
+
+	statusList := []string{"workflow", "continuous-integration", "minimum-coverage", "pull-request-coverage"}
+
+	reqChecks := make([]models.RequireStatusCheck, 0)
+	for _, rq := range statusList {
+		reqChecks = append(reqChecks, models.RequireStatusCheck{
+			Check: rq,
+		})
+	}
+
+	codeCoverageThreadhold := 80.0
+
+	var cicdConfigOK = models.Configuration{
+		ID:                               utils.Stringify("hbalmes/ci-cd_api"),
+		RepositoryName:                   utils.Stringify("ci-cd_api"),
+		RepositoryOwner:                  utils.Stringify("hbalmes"),
+		RepositoryStatusChecks:           reqChecks,
+		WorkflowType:                     utils.Stringify("gitflow"),
+		CodeCoveragePullRequestThreshold: &codeCoverageThreadhold,
+	}
+
+	var masterBranchConfig models.Branch
+	var branchConfig models.Branch
+
+	workflowConfig := configs.GetGitflowConfig(&cicdConfigOK)
+
+	branchesConfig := workflowConfig.Description.Branches
+
+	for _, branch := range branchesConfig {
+		if strings.HasPrefix("release/", *branch.Name) {
+			//releaseBranchConfig = branch
+		} else {
+			switch *branch.Name {
+			case "master":
+				masterBranchConfig = branch
+			case "develop":
+				//developBranchConfig = branch
+			}
+		}
+	}
+
+	tests := []struct {
+		name         string
+		args         args
+		restResponse restResponse
+		wantErr      bool
+		expects      expects
+	}{
+		{
+			name: "bad request branch name nil (invalid branch protection body params)",
+			args: args{
+				config:       &cicdConfigOK,
+				branchConfig: &branchConfig,
+			},
+			expects: expects{
+				error: apierrors.NewBadRequestApiError("invalid branch body params"),
+			},
+			restResponse: restResponse{},
+			wantErr:      true,
+		},
+		{
+			name: "branch not found",
+			args: args{
+				config:       &cicdConfigOK,
+				branchConfig: &masterBranchConfig,
+			},
+			expects: expects{
+				error: nil,
+			},
+			restResponse: restResponse{
+				mockStatusCode: 404,
+			},
+			wantErr: false,
+		},
+		{
+			name: "rest client error updating branch protection",
+			args: args{
+				config:       &cicdConfigOK,
+				branchConfig: &masterBranchConfig,
+			},
+			expects: expects{
+				error: apierrors.NewInternalServerApiError("Something went wrong deleting branch protection", errors.New("some error")),
+			},
+			restResponse: restResponse{
+				mockError: errors.New("some error"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "Bad request error deleting branch protection",
+			args: args{
+				config:       &cicdConfigOK,
+				branchConfig: &masterBranchConfig,
+			},
+			expects: expects{
+				error: apierrors.NewInternalServerApiError("error deleting branch protection- status: 400", nil),
+			},
+			restResponse: restResponse{
+				mockStatusCode: 400,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Delete Branch protection Success",
+			args: args{
+				config:       &cicdConfigOK,
+				branchConfig: &masterBranchConfig,
+			},
+			expects: expects{
+				error: nil,
+			},
+			restResponse: restResponse{
+				mockStatusCode: 204,
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			client := NewMockClient(ctrl)
+			response := NewMockResponse(ctrl)
+
+			response.
+				EXPECT().
+				Err().
+				Return(tt.restResponse.mockError).
+				AnyTimes()
+
+			response.
+				EXPECT().
+				StatusCode().
+				Return(tt.restResponse.mockStatusCode).
+				AnyTimes()
+
+			response.
+				EXPECT().
+				Bytes().
+				Return(tt.restResponse.mockBytes).
+				AnyTimes()
+
+			client.EXPECT().
+				Delete(gomock.Any()).
+				Return(response).
+				AnyTimes()
+
+			c := &githubClient{
+				Client: client,
+			}
+
+			if got := c.UnprotectBranch(tt.args.config, tt.args.branchConfig); !reflect.DeepEqual(got, tt.expects.error) {
+				t.Errorf("ProtectBranch() = %v, want %v", got, tt.expects.error)
+			}
+		})
+	}
+}

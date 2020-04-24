@@ -21,6 +21,7 @@ type GithubClient interface {
 	GetBranchInformation(config *models.Configuration, branchName string) (*models.GetBranchResponse, apierrors.ApiError)
 	CreateGithubRef(config *models.Configuration, branchConfig *models.Branch, workflowConfig *models.WorkflowConfig) apierrors.ApiError
 	ProtectBranch(config *models.Configuration, branchConfig *models.Branch) apierrors.ApiError
+	UnprotectBranch(config *models.Configuration, branchConfig *models.Branch) apierrors.ApiError
 	SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) apierrors.ApiError
 	CreateStatus(config *models.Configuration, statusWH *webhook.Status) apierrors.ApiError
 	CreateBranch(config *models.Configuration, branchConfig *models.Branch, sha string) apierrors.ApiError
@@ -222,6 +223,31 @@ func (c *githubClient) CreateStatus(config *models.Configuration, statusWH *webh
 
 	if response.StatusCode() != http.StatusOK && response.StatusCode() != http.StatusCreated {
 		return apierrors.NewInternalServerApiError("Error creating new status", response.Err())
+	}
+
+	return nil
+}
+
+
+//UnprotectBranch deletes the branch protection
+//This perform a DELETE request to Github api
+func (c *githubClient) UnprotectBranch(config *models.Configuration, branchConfig *models.Branch) apierrors.ApiError {
+
+	if branchConfig.Name == nil {
+		return apierrors.NewBadRequestApiError("invalid branch body params")
+	}
+
+	response := c.Client.Delete(fmt.Sprintf("/repos/%s/%s/branches/%s/protection", *config.RepositoryOwner, *config.RepositoryName, *branchConfig.Name))
+
+	if response.Err() != nil {
+		return apierrors.NewInternalServerApiError("Something went wrong deleting branch protection", response.Err())
+	}
+
+	if response.StatusCode() != http.StatusNoContent {
+		if response.StatusCode() == http.StatusNotFound {
+			return nil
+		}
+		return apierrors.NewInternalServerApiError(fmt.Sprintf("error deleting branch protection- status: %d", response.StatusCode()), response.Err())
 	}
 
 	return nil

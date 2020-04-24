@@ -12,6 +12,7 @@ import "github.com/hbalmes/ci_cd-api/api/configs"
 //ConfigurationService is an interface which represents the ConfigurationService for testing purpose.
 type WorkflowService interface {
 	SetWorkflow(config *models.Configuration) apierrors.ApiError
+	UnsetWorkflow(config *models.Configuration) apierrors.ApiError
 	CheckWorkflow(config *models.Configuration, prWebhook *webhook.PullRequestWebhook) *webhook.Status
 }
 
@@ -107,7 +108,6 @@ func (c *Configuration) CheckWorkflow(config *models.Configuration, prWebhook *w
 		workflowOk = true
 	}
 
-
 	if workflowOk {
 		stWebhook.State = utils.Stringify(statusWebhookSuccessState)
 		stWebhook.Description = utils.Stringify(statusWebhookSuccessDescription)
@@ -122,4 +122,27 @@ func (c *Configuration) CheckWorkflow(config *models.Configuration, prWebhook *w
 	stWebhook.Sha = prWebhook.PullRequest.Head.Sha
 
 	return &stWebhook
+}
+
+//UnsetWorkflow unprotect the necessary branches for the workflow configured
+func (c *Configuration) UnsetWorkflow(config *models.Configuration) apierrors.ApiError {
+
+	//Get the selected workflow configuration
+	wfc := configs.GetWorkflowConfiguration(config)
+
+	workflowBranchesList := wfc.Description.Branches
+
+	//Unprotect stable branches configured on the workflow
+	for _, branch := range workflowBranchesList {
+		if branch.Stable && branch.Requirements.ProtectAtStartup {
+			//delete branch protection
+			bpError := c.GithubClient.UnprotectBranch(config, &branch)
+
+			if bpError != nil {
+				return bpError
+			}
+		}
+	}
+
+	return nil
 }

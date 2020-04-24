@@ -78,6 +78,20 @@ func (mr *MockGithubClientMockRecorder) ProtectBranch(config, branchConfig inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProtectBranch", reflect.TypeOf((*MockGithubClient)(nil).ProtectBranch), config, branchConfig)
 }
 
+// UnprotectBranch mocks base method
+func (m *MockGithubClient) UnprotectBranch(config *models.Configuration, branchConfig *models.Branch) apierrors.ApiError {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnprotectBranch", config, branchConfig)
+	ret0, _ := ret[0].(apierrors.ApiError)
+	return ret0
+}
+
+// UnprotectBranch indicates an expected call of UnprotectBranch
+func (mr *MockGithubClientMockRecorder) UnprotectBranch(config, branchConfig interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnprotectBranch", reflect.TypeOf((*MockGithubClient)(nil).UnprotectBranch), config, branchConfig)
+}
+
 // SetDefaultBranch mocks base method
 func (m *MockGithubClient) SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) apierrors.ApiError {
 	m.ctrl.T.Helper()
