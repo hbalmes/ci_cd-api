@@ -62,19 +62,19 @@ func (c *Configuration) Create(ctx utils.HTTPContext) {
 //	404NotFound in case of the non existance of the configuration
 //	500InternalServerError in case of an internal error procesing the search
 func (c *Configuration) Show(ctx utils.HTTPContext) {
-	repoName := getRepoNamefromURL(ctx)
-	config, err := c.Service.Get(repoName)
+	id := getIDfromURL(ctx)
+	config, err := c.Service.Get(id)
 	if err != nil {
 		if err != gorm.ErrRecordNotFound {
 			ctx.JSON(
 				http.StatusInternalServerError,
-				apierrors.NewInternalServerApiError(fmt.Sprintf("something was wrong getting the configuration for %s", repoName), err),
+				apierrors.NewInternalServerApiError(fmt.Sprintf("something was wrong getting the configuration for %s", id), err),
 			)
 			return
 		}
 		ctx.JSON(
 			http.StatusNotFound,
-			apierrors.NewNotFoundApiError(fmt.Sprintf("configuration for repository %s not found", repoName)),
+			apierrors.NewNotFoundApiError(fmt.Sprintf("configuration for repository %s not found", id)),
 		)
 		return
 	}
@@ -120,20 +120,20 @@ func (c *Configuration) Update(ctx utils.HTTPContext) {
 //	500InternalServerError in case of an internal error processing the delete
 func (c *Configuration) Delete(ctx utils.HTTPContext) {
 
-	repoName := getRepoNamefromURL(ctx)
-	err := c.Service.Delete(repoName)
+	id := getIDfromURL(ctx)
+	err := c.Service.Delete(id)
 
 	if err != nil {
 		if err != gorm.ErrRecordNotFound {
 			ctx.JSON(
 				http.StatusInternalServerError,
-				apierrors.NewInternalServerApiError(fmt.Sprintf("something was wrong getting the configuration for %s", repoName), err),
+				apierrors.NewInternalServerApiError(fmt.Sprintf("something was wrong getting the configuration for %s", id), err),
 			)
 			return
 		}
 		ctx.JSON(
 			http.StatusNotFound,
-			apierrors.NewNotFoundApiError(fmt.Sprintf("configuration for repository %s not found", repoName)),
+			apierrors.NewNotFoundApiError(fmt.Sprintf("configuration for %s not found", id)),
 		)
 		return
 	}
@@ -146,4 +146,11 @@ func (c *Configuration) Delete(ctx utils.HTTPContext) {
 
 func getRepoNamefromURL(ctx utils.HTTPContext) string {
 	return ctx.Param("repoName")
+}
+
+func getIDfromURL(ctx utils.HTTPContext) string {
+	repoName := ctx.Param("repoName")
+	repoOwner := ctx.Param("repoOwner")
+	id := fmt.Sprintf("%s/%s", repoOwner, repoName)
+	return id
 }

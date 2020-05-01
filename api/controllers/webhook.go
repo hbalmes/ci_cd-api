@@ -17,7 +17,6 @@ const (
 
 type Webhook struct {
 	Service services.WebhookService
-	ConfService services.ConfigurationService
 }
 
 //NewWebhookController initializes a WebhookController
@@ -40,7 +39,6 @@ func (c *Webhook) CreateWebhook(ginContext *gin.Context) {
 		switch webhookEvent {
 		case "status":
 			var statusWH webhook.Status
-
 			if err := ginContext.BindJSON(&statusWH); err != nil {
 				ginContext.JSON(
 					http.StatusBadRequest,
@@ -49,24 +47,7 @@ func (c *Webhook) CreateWebhook(ginContext *gin.Context) {
 				return
 			}
 
-			//Validates that the repository has a ci cd configuration
-			config, err := c.ConfService.Get(*statusWH.Repository.FullName)
-
-			if err != nil {
-				ginContext.JSON(
-					http.StatusBadRequest,
-					apierrors.NewBadRequestApiError("invalid status webhook payload"),
-				)
-			}
-
-			if config != nil {
-				ginContext.JSON(
-					http.StatusBadRequest,
-					apierrors.NewBadRequestApiError("invalid status webhook payload"),
-				)
-			}
-
-			whook, err := c.Service.ProcessStatusWebhook(&statusWH, config)
+			whook, err := c.Service.ProcessStatusWebhook(&statusWH)
 
 			if err != nil {
 				ginContext.JSON(
@@ -106,7 +87,7 @@ func (c *Webhook) CreateWebhook(ginContext *gin.Context) {
 
 		case "pull_request":
 
-			var pullRequestWH webhook.PullRequestWebhook
+			var pullRequestWH *webhook.PullRequestWebhook
 			if err := ginContext.BindJSON(&pullRequestWH); err != nil {
 				ginContext.JSON(
 					http.StatusBadRequest,
@@ -115,7 +96,7 @@ func (c *Webhook) CreateWebhook(ginContext *gin.Context) {
 				return
 			}
 
-			whook, err := c.Service.ProcessPullRequestWebhook(&pullRequestWH)
+			whook, err := c.Service.ProcessPullRequestWebhook(pullRequestWH)
 
 			if err != nil {
 				ginContext.JSON(

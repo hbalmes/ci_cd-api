@@ -60,7 +60,6 @@ type RequireStatusCheck struct {
 func NewConfiguration(r *PostRequestPayload) *Configuration {
 	var c Configuration
 
-	c.ID = r.Repository.Name
 	c.RepositoryName = r.Repository.Name
 	c.RepositoryOwner = r.Repository.Owner
 	c.WorkflowType = r.Workflow.Type

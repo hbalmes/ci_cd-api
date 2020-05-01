@@ -14,6 +14,7 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/mercadolibre/golang-restclient/rest"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -32,16 +33,18 @@ type githubClient struct {
 }
 
 func NewGithubClient() GithubClient {
+	ghToken := os.Getenv("TESISGHTOKEN")
 	hs := make(http.Header)
 	hs.Set("cache-control", "no-cache")
-	hs.Set("Authorization", "token 79476df2e0c834810c237b3bda8e78ebc0bc7bca")
+	hs.Set("Content-Type", "application/json")
+	hs.Set("Authorization", fmt.Sprintf("token %s", ghToken))
 	hs.Set("Accept", "application/vnd.github.luke-cage-preview+json")
 
 	return &githubClient{
 		Client: &client{
 			RestClient: &rest.RequestBuilder{
 				BaseURL:        configs.GetGithubBaseURL(),
-				Timeout:        2 * time.Second,
+				Timeout:        5 * time.Second,
 				Headers:        hs,
 				ContentType:    rest.JSON,
 				DisableCache:   true,
@@ -215,7 +218,7 @@ func (c *githubClient) CreateStatus(config *models.Configuration, statusWH *webh
 		"context":     statusWH.Context,
 	}
 
-	response := c.Client.Post(fmt.Sprintf("/repos/%s/%s/statuses/%p", *config.RepositoryOwner, *config.RepositoryName, statusWH.Sha), body)
+	response := c.Client.Post(fmt.Sprintf("/repos/%s/%s/statuses/%s", *config.RepositoryOwner, *config.RepositoryName, *statusWH.Sha), body)
 
 	if response.Err() != nil {
 		return apierrors.NewInternalServerApiError("RestClient Error creating new status", response.Err())
