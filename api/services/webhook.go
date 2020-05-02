@@ -164,7 +164,7 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 		}
 
 		switch *payload.Action {
-		case "opened":
+		case "opened" , "synchronize":
 
 			statusWH := cf.CheckWorkflow(config, payload)
 

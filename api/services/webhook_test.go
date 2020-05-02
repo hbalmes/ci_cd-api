@@ -337,7 +337,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 
 	var pullRequestWebhook webhook.PullRequestWebhook
 	pullRequestWebhook.Number = 12345
-	pullRequestWebhook.Action = utils.Stringify("opened")
+	pullRequestWebhook.Action = utils.Stringify("synchronize")
 	pullRequestWebhook.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
 	pullRequestWebhook.Sender.Login = utils.Stringify("hbalmes")
 	pullRequestWebhook.PullRequest.State = utils.Stringify("open")
@@ -346,6 +346,18 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 	pullRequestWebhook.PullRequest.Base.Sha = utils.Stringify("lkjhgfdsoiuytrewqmnbvcxz12345")
 	pullRequestWebhook.PullRequest.Base.Ref = utils.Stringify("develop")
 	pullRequestWebhook.PullRequest.Body = utils.Stringify("Pull request Body")
+
+	/*var pullRequestWebhookSyncronize webhook.PullRequestWebhook
+	pullRequestWebhook.Number = 12345
+	pullRequestWebhook.Action = utils.Stringify("synchronize")
+	pullRequestWebhook.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestWebhook.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestWebhook.PullRequest.State = utils.Stringify("open")
+	pullRequestWebhook.PullRequest.Head.Sha = utils.Stringify("123456789qwertyuasdfghjzxcvbn")
+	pullRequestWebhook.PullRequest.Head.Ref = utils.Stringify("feature/test")
+	pullRequestWebhook.PullRequest.Base.Sha = utils.Stringify("lkjhgfdsoiuytrewqmnbvcxz12345")
+	pullRequestWebhook.PullRequest.Base.Ref = utils.Stringify("develop")
+	pullRequestWebhook.PullRequest.Body = utils.Stringify("Pull request Body")*/
 
 	var pullRequestWebhookActionNotSupported webhook.PullRequestWebhook
 	pullRequestWebhookActionNotSupported.Number = 12345
@@ -516,6 +528,21 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		/*{
+			name: "test - Pull request Webhook created OK (action syncronize)",
+			args: args{
+				payload: &pullRequestWebhookSyncronize,
+			},
+			expects: expects{
+				clientsResult: clientsResult{
+					sqlClient:    nil,
+					githubClient: nil,
+				},
+				sqlGetByError: gorm.ErrRecordNotFound,
+				config:        &cicdConfigOK,
+			},
+			wantErr: false,
+		},*/
 		{
 			name: "test - Action Not supported yet",
 			args: args{
