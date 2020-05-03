@@ -65,6 +65,13 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 	pullRequestReviewPayloadReviewActionNotSupported.Review.State = utils.Stringify("edited")
 	pullRequestReviewPayloadReviewActionNotSupported.PullRequest.Head.Sha = utils.Stringify("123456789asdfghjkqwertyu")
 
+	var pullRequestReviewPayloadReviewStateNotSupported webhook.PullRequestReviewWebhook
+	pullRequestReviewPayloadReviewStateNotSupported.Action = utils.Stringify("submitted")
+	pullRequestReviewPayloadReviewStateNotSupported.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestReviewPayloadReviewStateNotSupported.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestReviewPayloadReviewStateNotSupported.Review.State = utils.Stringify("lalala")
+	pullRequestReviewPayloadReviewStateNotSupported.PullRequest.Head.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+
 	var webhookOK webhook.Webhook
 	webhookOK.Type = utils.Stringify("pull_request_review")
 
@@ -128,7 +135,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 		{
 			name: "test - action: submitted, review edited - Review State not supported",
 			args: args{
-				payload: &pullRequestReviewPayloadReviewActionNotSupported,
+				payload: &pullRequestReviewPayloadReviewStateNotSupported,
 			},
 			expects: expects{
 				error: nil,
@@ -352,18 +359,6 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 	pullRequestWebhook.PullRequest.Base.Ref = utils.Stringify("develop")
 	pullRequestWebhook.PullRequest.Body = utils.Stringify("Pull request Body")
 
-	/*var pullRequestWebhookSyncronize webhook.PullRequestWebhook
-	pullRequestWebhook.Number = 12345
-	pullRequestWebhook.Action = utils.Stringify("synchronize")
-	pullRequestWebhook.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
-	pullRequestWebhook.Sender.Login = utils.Stringify("hbalmes")
-	pullRequestWebhook.PullRequest.State = utils.Stringify("open")
-	pullRequestWebhook.PullRequest.Head.Sha = utils.Stringify("123456789qwertyuasdfghjzxcvbn")
-	pullRequestWebhook.PullRequest.Head.Ref = utils.Stringify("feature/test")
-	pullRequestWebhook.PullRequest.Base.Sha = utils.Stringify("lkjhgfdsoiuytrewqmnbvcxz12345")
-	pullRequestWebhook.PullRequest.Base.Ref = utils.Stringify("develop")
-	pullRequestWebhook.PullRequest.Body = utils.Stringify("Pull request Body")*/
-
 	var pullRequestWebhookActionNotSupported webhook.PullRequestWebhook
 	pullRequestWebhookActionNotSupported.Number = 12345
 	pullRequestWebhookActionNotSupported.Action = utils.Stringify("lalalala")
@@ -402,7 +397,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 	codeCoverageThreadhold := 80.0
 
 	cicdConfigOK := models.Configuration{
-		ID:                               utils.Stringify("ci-cd_api"),
+		ID:                               utils.Stringify("hbalmes/ci-cd_api"),
 		RepositoryName:                   utils.Stringify("ci-cd_api"),
 		RepositoryOwner:                  utils.Stringify("hbalmes"),
 		RepositoryStatusChecks:           reqChecks,
@@ -457,7 +452,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "test - Pull Request Already exists",
+			name: "test - Pull Request Already exists (synchronize)",
 			args: args{
 				payload: &pullRequestWebhook,
 			},
@@ -466,6 +461,22 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient: nil,
+				},
+				sqlGetByError: nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "test - Pull Request Already exists (synchronize) - failure sending status",
+			args: args{
+				payload: &pullRequestWebhook,
+			},
+			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
+				clientsResult: clientsResult{
+					sqlClient: nil,
+					githubClient: apierrors.NewNotFoundApiError("some error"),
 				},
 				sqlGetByError: nil,
 			},
@@ -533,21 +544,6 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		/*{
-			name: "test - Pull request Webhook created OK (action syncronize)",
-			args: args{
-				payload: &pullRequestWebhookSyncronize,
-			},
-			expects: expects{
-				clientsResult: clientsResult{
-					sqlClient:    nil,
-					githubClient: nil,
-				},
-				sqlGetByError: gorm.ErrRecordNotFound,
-				config:        &cicdConfigOK,
-			},
-			wantErr: false,
-		},*/
 		{
 			name: "test - Action Not supported yet",
 			args: args{
