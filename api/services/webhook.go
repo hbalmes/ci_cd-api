@@ -35,8 +35,8 @@ type Webhook struct {
 //NewConfigurationSeNewWebhookServicervice initializes a WebhookService
 func NewWebhookService(sql storage.SQLStorage) *Webhook {
 	return &Webhook{
-		SQL:          sql,
-		GithubClient: clients.NewGithubClient(),
+		SQL:           sql,
+		GithubClient:  clients.NewGithubClient(),
 		ConfigService: NewConfigurationService(sql),
 	}
 }
@@ -164,7 +164,7 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 		}
 
 		switch *payload.Action {
-		case "opened" , "synchronize":
+		case "opened", "synchronize":
 
 			statusWH := cf.CheckWorkflow(config, payload)
 
@@ -178,8 +178,19 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 			return nil, apierrors.NewBadRequestApiError("Action not supported yet")
 		}
 
-	} else { //If webhook already exists then return it
-		return nil, apierrors.NewConflictApiError("Resource Already exists")
+	} else {
+
+		if *payload.Action == "synchronize" {
+			statusWH := cf.CheckWorkflow(config, payload)
+
+			notifyStatusErr := s.GithubClient.CreateStatus(config, statusWH)
+
+			if notifyStatusErr != nil {
+				return nil, apierrors.NewInternalServerApiError(notifyStatusErr.Message(), notifyStatusErr)
+			}
+		} else { //If webhook already exists then return it
+			return nil, apierrors.NewConflictApiError("Resource Already exists")
+		}
 	}
 
 	return &wh, nil
