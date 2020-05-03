@@ -190,16 +190,16 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 
 	var wh webhook.Webhook
 
-	webhookType := "pull_request_review"
+	webhookType := utils.Stringify("pull_request_review")
 
 	//Build a ID to identify a unique webhook
-	prWHBaseID := payload.Repository.FullName + payload.PullRequest.Head.Sha + webhookType + payload.Review.State
+	prWHBaseID := *payload.Repository.FullName + *payload.PullRequest.Head.Sha + *webhookType + *payload.Review.State
 	prWebhookID := utils.Stringify(utils.GetMD5Hash(prWHBaseID))
 
-	switch payload.Action {
+	switch *payload.Action {
 	case pullRequestReviewSubmittedAction:
 		//If the revision was approved. We must keep in the database
-		if payload.Review.State == approvedPullRequestReviewState {
+		if *payload.Review.State == approvedPullRequestReviewState {
 
 			//Search the status webhook into database
 			if err := s.SQL.GetBy(&wh, "id = ?", &prWebhookID); err != nil {
@@ -212,12 +212,12 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 				//Fill every field in the webhook
 				wh.ID = prWebhookID
 				//wh.GithubDeliveryID = utils.Stringify(ctx.GetHeader("X-GitHub-Delivery"))
-				wh.Type = utils.Stringify(webhookType)
-				wh.GithubRepositoryName = utils.Stringify(payload.Repository.FullName)
-				wh.SenderName = utils.Stringify(payload.Sender.Login)
-				wh.State = utils.Stringify(payload.Review.State)
-				wh.Sha = utils.Stringify(payload.PullRequest.Head.Sha)
-				wh.Description = utils.Stringify(payload.Review.Body)
+				wh.Type = webhookType
+				wh.GithubRepositoryName = payload.Repository.FullName
+				wh.SenderName = payload.Sender.Login
+				wh.State = payload.Review.State
+				wh.Sha = payload.PullRequest.Head.Sha
+				wh.Description = payload.Review.Body
 
 				//Save it into database
 				if err := s.SQL.Insert(&wh); err != nil {

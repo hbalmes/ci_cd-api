@@ -31,34 +31,39 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 	}
 
 	var pullRequestReviewPayloadOK webhook.PullRequestReviewWebhook
-	pullRequestReviewPayloadOK.Action = "submitted"
-	pullRequestReviewPayloadOK.Sender.Login = "hbalmes"
-	pullRequestReviewPayloadOK.Repository.FullName = "hbalmes/ci-cd_api"
-	pullRequestReviewPayloadOK.PullRequest.Head.Sha = "123456789asdfghjkqwertyu"
-	pullRequestReviewPayloadOK.Review.State = "approved"
-	pullRequestReviewPayloadOK.PullRequest.CreatedAt = "2019-05-15T15:20:33Z"
-	pullRequestReviewPayloadOK.PullRequest.UpdatedAt = "2019-05-15T15:20:38Z"
-	pullRequestReviewPayloadOK.Review.Body = "Aprobado"
+	pullRequestReviewPayloadOK.Action = utils.Stringify("submitted")
+	pullRequestReviewPayloadOK.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestReviewPayloadOK.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestReviewPayloadOK.PullRequest.Head.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	pullRequestReviewPayloadOK.Review.State = utils.Stringify("approved")
+	pullRequestReviewPayloadOK.PullRequest.CreatedAt = utils.Stringify("2019-05-15T15:20:33Z")
+	pullRequestReviewPayloadOK.PullRequest.UpdatedAt = utils.Stringify("2019-05-15T15:20:38Z")
+	pullRequestReviewPayloadOK.Review.Body = utils.Stringify("Aprobado")
 
 	var pullRequestReviewPayloadAlreadyExists webhook.PullRequestReviewWebhook
-	pullRequestReviewPayloadAlreadyExists.Action = "edited"
-	pullRequestReviewPayloadAlreadyExists.Sender.Login = "hbalmes"
-	pullRequestReviewPayloadAlreadyExists.Repository.FullName = "hbalmes/ci-cd_api"
+	pullRequestReviewPayloadAlreadyExists.Action = utils.Stringify("edited")
+	pullRequestReviewPayloadAlreadyExists.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestReviewPayloadAlreadyExists.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
 
 	var pullRequestReviewPayloadReviewNotApproved webhook.PullRequestReviewWebhook
-	pullRequestReviewPayloadReviewNotApproved.Action = "submitted"
-	pullRequestReviewPayloadReviewNotApproved.Sender.Login = "hbalmes"
-	pullRequestReviewPayloadReviewNotApproved.Repository.FullName = "hbalmes/ci-cd_api"
-	pullRequestReviewPayloadReviewNotApproved.Review.State = "edited"
+	pullRequestReviewPayloadReviewNotApproved.Action = utils.Stringify("submitted")
+	pullRequestReviewPayloadReviewNotApproved.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestReviewPayloadReviewNotApproved.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestReviewPayloadReviewNotApproved.Review.State = utils.Stringify("edited")
 
 	var pullRequestReviewPayloadReviewDismissed webhook.PullRequestReviewWebhook
-	pullRequestReviewPayloadReviewDismissed.Action = "dismissed"
-	pullRequestReviewPayloadReviewDismissed.Sender.Login = "hbalmes"
-	pullRequestReviewPayloadReviewDismissed.Repository.FullName = "hbalmes/ci-cd_api"
-	pullRequestReviewPayloadReviewDismissed.Review.State = "edited"
+	pullRequestReviewPayloadReviewDismissed.Action = utils.Stringify("dismissed")
+	pullRequestReviewPayloadReviewDismissed.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestReviewPayloadReviewDismissed.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestReviewPayloadReviewDismissed.Review.State = utils.Stringify("edited")
+	pullRequestReviewPayloadReviewDismissed.PullRequest.Head.Sha = utils.Stringify("123456789asdfghjkqwertyu")
 
 	var pullRequestReviewPayloadReviewActionNotSupported webhook.PullRequestReviewWebhook
-	pullRequestReviewPayloadReviewActionNotSupported.Action = "lalala"
+	pullRequestReviewPayloadReviewActionNotSupported.Action = utils.Stringify("lalala")
+	pullRequestReviewPayloadReviewActionNotSupported.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestReviewPayloadReviewActionNotSupported.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestReviewPayloadReviewActionNotSupported.Review.State = utils.Stringify("edited")
+	pullRequestReviewPayloadReviewActionNotSupported.PullRequest.Head.Sha = utils.Stringify("123456789asdfghjkqwertyu")
 
 	var webhookOK webhook.Webhook
 	webhookOK.Type = utils.Stringify("pull_request_review")
@@ -123,7 +128,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 		{
 			name: "test - action: submitted, review edited - Review State not supported",
 			args: args{
-				payload: &pullRequestReviewPayloadReviewNotApproved,
+				payload: &pullRequestReviewPayloadReviewActionNotSupported,
 			},
 			expects: expects{
 				error: nil,
@@ -133,7 +138,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 		{
 			name: "test - action: edited- Action not supported",
 			args: args{
-				payload: &pullRequestReviewPayloadAlreadyExists,
+				payload: &pullRequestReviewPayloadReviewActionNotSupported,
 			},
 			expects: expects{
 				error: nil,
@@ -430,7 +435,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			},
 			expects: expects{
 				getConfig: nil,
-				config: nil,
+				config:    nil,
 			},
 			wantErr: true,
 		},
@@ -442,7 +447,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 
 			expects: expects{
 				getConfig: nil,
-				config: &cicdConfigOK,
+				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient:    nil,
 					githubClient: apierrors.NewNotFoundApiError("some error"),
@@ -458,7 +463,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			},
 			expects: expects{
 				getConfig: nil,
-				config: &cicdConfigOK,
+				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient: nil,
 				},
@@ -473,7 +478,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			},
 			expects: expects{
 				getConfig: nil,
-				config: &cicdConfigOK,
+				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient: nil,
 				},
@@ -488,7 +493,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			},
 			expects: expects{
 				getConfig: nil,
-				config: &cicdConfigOK,
+				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient: nil,
 				},
@@ -504,7 +509,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			},
 			expects: expects{
 				getConfig: nil,
-				config: &cicdConfigOK,
+				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient:    nil,
 					githubClient: apierrors.NewNotFoundApiError("some error"),
@@ -550,7 +555,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			},
 			expects: expects{
 				getConfig: nil,
-				config: &cicdConfigOK,
+				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient:    nil,
 					githubClient: nil,
@@ -691,7 +696,7 @@ func TestWebhook_ProcessPullRequestWebhookErrorSavingOnDB(t *testing.T) {
 			},
 
 			expects: expects{
-				config:  &cicdConfigOK,
+				config: &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient:    nil,
 					githubClient: nil,
@@ -739,8 +744,8 @@ func TestWebhook_ProcessPullRequestWebhookErrorSavingOnDB(t *testing.T) {
 			)
 
 			s := &Webhook{
-				SQL:          sqlStorage,
-				GithubClient: githubClient,
+				SQL:           sqlStorage,
+				GithubClient:  githubClient,
 				ConfigService: configService,
 			}
 			_, err := s.ProcessPullRequestWebhook(tt.args.payload)
@@ -913,7 +918,7 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 				payload: &allowedStatusWebhookSuccess,
 			},
 			expects: expects{
-				config: &cicdConfigOK,
+				config:        &cicdConfigOK,
 				sqlGetByError: gorm.ErrRecordNotFound,
 			},
 			wantErr: false,
