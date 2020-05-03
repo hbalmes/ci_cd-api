@@ -49,6 +49,20 @@ func (mr *MockWorkflowServiceMockRecorder) SetWorkflow(config interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWorkflow", reflect.TypeOf((*MockWorkflowService)(nil).SetWorkflow), config)
 }
 
+// UnsetWorkflow mocks base method
+func (m *MockWorkflowService) UnsetWorkflow(config *models.Configuration) apierrors.ApiError {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnsetWorkflow", config)
+	ret0, _ := ret[0].(apierrors.ApiError)
+	return ret0
+}
+
+// UnsetWorkflow indicates an expected call of UnsetWorkflow
+func (mr *MockWorkflowServiceMockRecorder) UnsetWorkflow(config interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnsetWorkflow", reflect.TypeOf((*MockWorkflowService)(nil).UnsetWorkflow), config)
+}
+
 // CheckWorkflow mocks base method
 func (m *MockWorkflowService) CheckWorkflow(config *models.Configuration, prWebhook *webhook.PullRequestWebhook) *webhook.Status {
 	m.ctrl.T.Helper()

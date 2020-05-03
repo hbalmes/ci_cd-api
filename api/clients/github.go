@@ -14,6 +14,7 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/mercadolibre/golang-restclient/rest"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -21,6 +22,7 @@ type GithubClient interface {
 	GetBranchInformation(config *models.Configuration, branchName string) (*models.GetBranchResponse, apierrors.ApiError)
 	CreateGithubRef(config *models.Configuration, branchConfig *models.Branch, workflowConfig *models.WorkflowConfig) apierrors.ApiError
 	ProtectBranch(config *models.Configuration, branchConfig *models.Branch) apierrors.ApiError
+	UnprotectBranch(config *models.Configuration, branchConfig *models.Branch) apierrors.ApiError
 	SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) apierrors.ApiError
 	CreateStatus(config *models.Configuration, statusWH *webhook.Status) apierrors.ApiError
 	CreateBranch(config *models.Configuration, branchConfig *models.Branch, sha string) apierrors.ApiError
@@ -31,16 +33,18 @@ type githubClient struct {
 }
 
 func NewGithubClient() GithubClient {
+	ghToken := os.Getenv("TESISGHTOKEN")
 	hs := make(http.Header)
 	hs.Set("cache-control", "no-cache")
-	hs.Set("Authorization", "token 79476df2e0c834810c237b3bda8e78ebc0bc7bca")
+	hs.Set("Content-Type", "application/json")
+	hs.Set("Authorization", fmt.Sprintf("token %s", ghToken))
 	hs.Set("Accept", "application/vnd.github.luke-cage-preview+json")
 
 	return &githubClient{
 		Client: &client{
 			RestClient: &rest.RequestBuilder{
 				BaseURL:        configs.GetGithubBaseURL(),
-				Timeout:        2 * time.Second,
+				Timeout:        5 * time.Second,
 				Headers:        hs,
 				ContentType:    rest.JSON,
 				DisableCache:   true,
@@ -214,7 +218,7 @@ func (c *githubClient) CreateStatus(config *models.Configuration, statusWH *webh
 		"context":     statusWH.Context,
 	}
 
-	response := c.Client.Post(fmt.Sprintf("/repos/%s/%s/statuses/%p", *config.RepositoryOwner, *config.RepositoryName, statusWH.Sha), body)
+	response := c.Client.Post(fmt.Sprintf("/repos/%s/%s/statuses/%s", *config.RepositoryOwner, *config.RepositoryName, *statusWH.Sha), body)
 
 	if response.Err() != nil {
 		return apierrors.NewInternalServerApiError("RestClient Error creating new status", response.Err())
@@ -222,6 +226,31 @@ func (c *githubClient) CreateStatus(config *models.Configuration, statusWH *webh
 
 	if response.StatusCode() != http.StatusOK && response.StatusCode() != http.StatusCreated {
 		return apierrors.NewInternalServerApiError("Error creating new status", response.Err())
+	}
+
+	return nil
+}
+
+
+//UnprotectBranch deletes the branch protection
+//This perform a DELETE request to Github api
+func (c *githubClient) UnprotectBranch(config *models.Configuration, branchConfig *models.Branch) apierrors.ApiError {
+
+	if branchConfig.Name == nil {
+		return apierrors.NewBadRequestApiError("invalid branch body params")
+	}
+
+	response := c.Client.Delete(fmt.Sprintf("/repos/%s/%s/branches/%s/protection", *config.RepositoryOwner, *config.RepositoryName, *branchConfig.Name))
+
+	if response.Err() != nil {
+		return apierrors.NewInternalServerApiError("Something went wrong deleting branch protection", response.Err())
+	}
+
+	if response.StatusCode() != http.StatusNoContent {
+		if response.StatusCode() == http.StatusNotFound {
+			return nil
+		}
+		return apierrors.NewInternalServerApiError(fmt.Sprintf("error deleting branch protection- status: %d", response.StatusCode()), response.Err())
 	}
 
 	return nil

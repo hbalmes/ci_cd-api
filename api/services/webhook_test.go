@@ -31,34 +31,46 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 	}
 
 	var pullRequestReviewPayloadOK webhook.PullRequestReviewWebhook
-	pullRequestReviewPayloadOK.Action = "submitted"
-	pullRequestReviewPayloadOK.Sender.Login = "hbalmes"
-	pullRequestReviewPayloadOK.Repository.FullName = "hbalmes/ci-cd_api"
-	pullRequestReviewPayloadOK.PullRequest.Head.Sha = "123456789asdfghjkqwertyu"
-	pullRequestReviewPayloadOK.Review.State = "approved"
-	pullRequestReviewPayloadOK.PullRequest.CreatedAt = "2019-05-15T15:20:33Z"
-	pullRequestReviewPayloadOK.PullRequest.UpdatedAt = "2019-05-15T15:20:38Z"
-	pullRequestReviewPayloadOK.Review.Body = "Aprobado"
+	pullRequestReviewPayloadOK.Action = utils.Stringify("submitted")
+	pullRequestReviewPayloadOK.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestReviewPayloadOK.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestReviewPayloadOK.PullRequest.Head.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	pullRequestReviewPayloadOK.Review.State = utils.Stringify("approved")
+	pullRequestReviewPayloadOK.PullRequest.CreatedAt = utils.Stringify("2019-05-15T15:20:33Z")
+	pullRequestReviewPayloadOK.PullRequest.UpdatedAt = utils.Stringify("2019-05-15T15:20:38Z")
+	pullRequestReviewPayloadOK.Review.Body = utils.Stringify("Aprobado")
 
 	var pullRequestReviewPayloadAlreadyExists webhook.PullRequestReviewWebhook
-	pullRequestReviewPayloadAlreadyExists.Action = "edited"
-	pullRequestReviewPayloadAlreadyExists.Sender.Login = "hbalmes"
-	pullRequestReviewPayloadAlreadyExists.Repository.FullName = "hbalmes/ci-cd_api"
+	pullRequestReviewPayloadAlreadyExists.Action = utils.Stringify("edited")
+	pullRequestReviewPayloadAlreadyExists.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestReviewPayloadAlreadyExists.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
 
 	var pullRequestReviewPayloadReviewNotApproved webhook.PullRequestReviewWebhook
-	pullRequestReviewPayloadReviewNotApproved.Action = "submitted"
-	pullRequestReviewPayloadReviewNotApproved.Sender.Login = "hbalmes"
-	pullRequestReviewPayloadReviewNotApproved.Repository.FullName = "hbalmes/ci-cd_api"
-	pullRequestReviewPayloadReviewNotApproved.Review.State = "edited"
+	pullRequestReviewPayloadReviewNotApproved.Action = utils.Stringify("submitted")
+	pullRequestReviewPayloadReviewNotApproved.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestReviewPayloadReviewNotApproved.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestReviewPayloadReviewNotApproved.Review.State = utils.Stringify("edited")
 
 	var pullRequestReviewPayloadReviewDismissed webhook.PullRequestReviewWebhook
-	pullRequestReviewPayloadReviewDismissed.Action = "dismissed"
-	pullRequestReviewPayloadReviewDismissed.Sender.Login = "hbalmes"
-	pullRequestReviewPayloadReviewDismissed.Repository.FullName = "hbalmes/ci-cd_api"
-	pullRequestReviewPayloadReviewDismissed.Review.State = "edited"
+	pullRequestReviewPayloadReviewDismissed.Action = utils.Stringify("dismissed")
+	pullRequestReviewPayloadReviewDismissed.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestReviewPayloadReviewDismissed.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestReviewPayloadReviewDismissed.Review.State = utils.Stringify("edited")
+	pullRequestReviewPayloadReviewDismissed.PullRequest.Head.Sha = utils.Stringify("123456789asdfghjkqwertyu")
 
 	var pullRequestReviewPayloadReviewActionNotSupported webhook.PullRequestReviewWebhook
-	pullRequestReviewPayloadReviewActionNotSupported.Action = "lalala"
+	pullRequestReviewPayloadReviewActionNotSupported.Action = utils.Stringify("lalala")
+	pullRequestReviewPayloadReviewActionNotSupported.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestReviewPayloadReviewActionNotSupported.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestReviewPayloadReviewActionNotSupported.Review.State = utils.Stringify("edited")
+	pullRequestReviewPayloadReviewActionNotSupported.PullRequest.Head.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+
+	var pullRequestReviewPayloadReviewStateNotSupported webhook.PullRequestReviewWebhook
+	pullRequestReviewPayloadReviewStateNotSupported.Action = utils.Stringify("submitted")
+	pullRequestReviewPayloadReviewStateNotSupported.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestReviewPayloadReviewStateNotSupported.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestReviewPayloadReviewStateNotSupported.Review.State = utils.Stringify("lalala")
+	pullRequestReviewPayloadReviewStateNotSupported.PullRequest.Head.Sha = utils.Stringify("123456789asdfghjkqwertyu")
 
 	var webhookOK webhook.Webhook
 	webhookOK.Type = utils.Stringify("pull_request_review")
@@ -123,7 +135,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 		{
 			name: "test - action: submitted, review edited - Review State not supported",
 			args: args{
-				payload: &pullRequestReviewPayloadReviewNotApproved,
+				payload: &pullRequestReviewPayloadReviewStateNotSupported,
 			},
 			expects: expects{
 				error: nil,
@@ -133,7 +145,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 		{
 			name: "test - action: edited- Action not supported",
 			args: args{
-				payload: &pullRequestReviewPayloadAlreadyExists,
+				payload: &pullRequestReviewPayloadReviewActionNotSupported,
 			},
 			expects: expects{
 				error: nil,
@@ -312,7 +324,6 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 
 	type args struct {
 		payload *webhook.PullRequestWebhook
-		config  *models.Configuration
 	}
 
 	type clientsResult struct {
@@ -329,7 +340,8 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 		sqlGetByError       error
 		sqlInsertError      error
 		sqlDeleteError      error
-		config              models.Configuration
+		getConfig           apierrors.ApiError
+		config              *models.Configuration
 		clientsResult       clientsResult
 		workflowCheckResult workflowCheckResult
 		savePullRequest     apierrors.ApiError
@@ -337,7 +349,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 
 	var pullRequestWebhook webhook.PullRequestWebhook
 	pullRequestWebhook.Number = 12345
-	pullRequestWebhook.Action = utils.Stringify("opened")
+	pullRequestWebhook.Action = utils.Stringify("synchronize")
 	pullRequestWebhook.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
 	pullRequestWebhook.Sender.Login = utils.Stringify("hbalmes")
 	pullRequestWebhook.PullRequest.State = utils.Stringify("open")
@@ -385,7 +397,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 	codeCoverageThreadhold := 80.0
 
 	cicdConfigOK := models.Configuration{
-		ID:                               utils.Stringify("ci-cd_api"),
+		ID:                               utils.Stringify("hbalmes/ci-cd_api"),
 		RepositoryName:                   utils.Stringify("ci-cd_api"),
 		RepositoryOwner:                  utils.Stringify("hbalmes"),
 		RepositoryStatusChecks:           reqChecks,
@@ -402,13 +414,35 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 		expects expects
 	}{
 		{
+			name: "test - error getting config",
+			args: args{
+				payload: &pullRequestWebhookBadRequest,
+			},
+			expects: expects{
+				getConfig: apierrors.NewNotFoundApiError("configuration not found for the repository"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "test - config not found",
+			args: args{
+				payload: &pullRequestWebhookBadRequest,
+			},
+			expects: expects{
+				getConfig: nil,
+				config:    nil,
+			},
+			wantErr: true,
+		},
+		{
 			name: "test - Bad Request - Pull Request Payload",
 			args: args{
 				payload: &pullRequestWebhookBadRequest,
-				config:  &cicdConfigOK,
 			},
 
 			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient:    nil,
 					githubClient: apierrors.NewNotFoundApiError("some error"),
@@ -418,15 +452,31 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "test - Pull Request Already exists",
+			name: "test - Pull Request Already exists (synchronize)",
 			args: args{
 				payload: &pullRequestWebhook,
-				config:  &cicdConfigOK,
 			},
-
 			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient: nil,
+				},
+				sqlGetByError: nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "test - Pull Request Already exists (synchronize) - failure sending status",
+			args: args{
+				payload: &pullRequestWebhook,
+			},
+			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
+				clientsResult: clientsResult{
+					sqlClient: nil,
+					githubClient: apierrors.NewNotFoundApiError("some error"),
 				},
 				sqlGetByError: nil,
 			},
@@ -436,10 +486,10 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			name: "test - Error getting values from DB",
 			args: args{
 				payload: &pullRequestWebhook,
-				config:  &cicdConfigOK,
 			},
-
 			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient: nil,
 				},
@@ -451,10 +501,10 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			name: "test - Error saving pull request webhook",
 			args: args{
 				payload: &pullRequestWebhook,
-				config:  &cicdConfigOK,
 			},
-
 			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient: nil,
 				},
@@ -467,10 +517,10 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			name: "test - Error creating github Status",
 			args: args{
 				payload: &pullRequestWebhook,
-				config:  &cicdConfigOK,
 			},
-
 			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient:    nil,
 					githubClient: apierrors.NewNotFoundApiError("some error"),
@@ -483,15 +533,14 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			name: "test - Pull request Webhook created OK",
 			args: args{
 				payload: &pullRequestWebhook,
-				config:  &cicdConfigOK,
 			},
-
 			expects: expects{
 				clientsResult: clientsResult{
 					sqlClient:    nil,
 					githubClient: nil,
 				},
 				sqlGetByError: gorm.ErrRecordNotFound,
+				config:        &cicdConfigOK,
 			},
 			wantErr: false,
 		},
@@ -499,10 +548,10 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			name: "test - Action Not supported yet",
 			args: args{
 				payload: &pullRequestWebhookActionNotSupported,
-				config:  &cicdConfigOK,
 			},
-
 			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient:    nil,
 					githubClient: nil,
@@ -519,7 +568,12 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 
 			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
 			githubClient := interfaces.NewMockGithubClient(ctrl)
-			//workflowService := interfaces.NewMockWorkflowService(ctrl)
+			configService := interfaces.NewMockConfigurationService(ctrl)
+
+			configService.EXPECT().
+				Get(gomock.Any()).
+				Return(tt.expects.config, tt.expects.getConfig).
+				AnyTimes()
 
 			sqlStorage.EXPECT().
 				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -545,8 +599,9 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 				AnyTimes()
 
 			s := &Webhook{
-				SQL:          sqlStorage,
-				GithubClient: githubClient,
+				SQL:           sqlStorage,
+				GithubClient:  githubClient,
+				ConfigService: configService,
 			}
 			_, err := s.ProcessPullRequestWebhook(tt.args.payload)
 
@@ -563,7 +618,6 @@ func TestWebhook_ProcessPullRequestWebhookErrorSavingOnDB(t *testing.T) {
 
 	type args struct {
 		payload *webhook.PullRequestWebhook
-		config  *models.Configuration
 	}
 
 	type clientsResult struct {
@@ -581,7 +635,8 @@ func TestWebhook_ProcessPullRequestWebhookErrorSavingOnDB(t *testing.T) {
 		sqlInsertPRError    error
 		sqlInsertWHError    error
 		sqlDeleteError      error
-		config              models.Configuration
+		getConfig           apierrors.ApiError
+		config              *models.Configuration
 		clientsResult       clientsResult
 		workflowCheckResult workflowCheckResult
 		savePullRequest     apierrors.ApiError
@@ -634,10 +689,10 @@ func TestWebhook_ProcessPullRequestWebhookErrorSavingOnDB(t *testing.T) {
 			name: "test - Fail inserting new webhook",
 			args: args{
 				payload: &pullRequestWebhook,
-				config:  &cicdConfigOK,
 			},
 
 			expects: expects{
+				config: &cicdConfigOK,
 				clientsResult: clientsResult{
 					sqlClient:    nil,
 					githubClient: nil,
@@ -656,8 +711,15 @@ func TestWebhook_ProcessPullRequestWebhookErrorSavingOnDB(t *testing.T) {
 
 			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
 			githubClient := interfaces.NewMockGithubClient(ctrl)
+			configService := interfaces.NewMockConfigurationService(ctrl)
 
 			gomock.InOrder(
+
+				configService.EXPECT().
+					Get(gomock.Any()).
+					Return(tt.expects.config, tt.expects.getConfig).
+					AnyTimes(),
+
 				sqlStorage.EXPECT().
 					GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(e interface{}, qry ...interface{}) *webhook.Webhook {
@@ -678,8 +740,9 @@ func TestWebhook_ProcessPullRequestWebhookErrorSavingOnDB(t *testing.T) {
 			)
 
 			s := &Webhook{
-				SQL:          sqlStorage,
-				GithubClient: githubClient,
+				SQL:           sqlStorage,
+				GithubClient:  githubClient,
+				ConfigService: configService,
 			}
 			_, err := s.ProcessPullRequestWebhook(tt.args.payload)
 
@@ -696,29 +759,13 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 
 	type args struct {
 		payload *webhook.Status
-		config  *models.Configuration
-	}
-
-	type clientsResult struct {
-		sqlClient    apierrors.ApiError
-		githubClient apierrors.ApiError
-	}
-
-	type workflowCheckResult struct {
-		webhookStatus *webhook.Status
-		error         apierrors.ApiError
 	}
 
 	type expects struct {
-		sqlGetByError       error
-		sqlConfigGetByError error
-		sqlInsertError      error
-		sqlInsertWHError    error
-		getConfigError      error
-		config              *models.Configuration
-		clientsResult       clientsResult
-		workflowCheckResult workflowCheckResult
-		savePullRequest     apierrors.ApiError
+		sqlGetByError  error
+		sqlInsertError error
+		getConfig      apierrors.ApiError
+		config         *models.Configuration
 	}
 
 	var allowedStatusWebhookSuccess webhook.Status
@@ -731,15 +778,26 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 	allowedStatusWebhookSuccess.TargetURL = utils.Stringify("http://url-api.com")
 	allowedStatusWebhookSuccess.Name = utils.Stringify("workflow")
 
-	var notAllowedStatusWebhookSuccess webhook.Status
-	notAllowedStatusWebhookSuccess.Sha = utils.Stringify("23456789qwertyuiasdfghjzxcvbn")
-	notAllowedStatusWebhookSuccess.State = utils.Stringify("success")
-	notAllowedStatusWebhookSuccess.Sender.Login = utils.Stringify("hbalmes")
-	notAllowedStatusWebhookSuccess.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
-	notAllowedStatusWebhookSuccess.Description = utils.Stringify("Webhook description")
-	notAllowedStatusWebhookSuccess.TargetURL = utils.Stringify("http://url-api.com")
-	notAllowedStatusWebhookSuccess.Name = utils.Stringify("lalalala")
-	notAllowedStatusWebhookSuccess.Context = utils.Stringify("lalalala")
+	notAllowedStatusWebhookSuccess := webhook.Status{
+		ID:          0,
+		Sha:         utils.Stringify("23456789qwertyuiasdfghjzxcvbn"),
+		Name:        utils.Stringify("lalalala"),
+		Context:     utils.Stringify("lalalala"),
+		Description: utils.Stringify("Webhook description"),
+		State:       utils.Stringify("success"),
+		TargetURL:   utils.Stringify("http://url-api.com"),
+		CreatedAt:   time.Time{},
+		UpdatedAt:   time.Time{},
+		Repository: struct {
+			ID       int     `json:"id"`
+			FullName *string `json:"full_name"`
+		}{
+			FullName: utils.Stringify("hbalmes/ci-cd_api"),
+		},
+		Sender: struct {
+			Login *string `json:"login"`
+		}{Login: utils.Stringify("hbalmes")},
+	}
 
 	var webhookOK webhook.Webhook
 	webhookOK.Type = utils.Stringify("pull_request")
@@ -755,13 +813,15 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 
 	codeCoverageThreadhold := 80.0
 
-	var cicdConfigOK = models.Configuration{
+	cicdConfigOK := models.Configuration{
 		ID:                               utils.Stringify("hbalmes/ci-cd_api"),
 		RepositoryName:                   utils.Stringify("ci-cd_api"),
 		RepositoryOwner:                  utils.Stringify("hbalmes"),
 		RepositoryStatusChecks:           reqChecks,
 		WorkflowType:                     utils.Stringify("gitflow"),
 		CodeCoveragePullRequestThreshold: &codeCoverageThreadhold,
+		CreatedAt:                        time.Time{},
+		UpdatedAt:                        time.Time{},
 	}
 
 	tests := []struct {
@@ -774,17 +834,38 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 			name: "test - Not allowed status webhook",
 			args: args{
 				payload: &notAllowedStatusWebhookSuccess,
-				config:  &cicdConfigOK,
 			},
-
 			expects: expects{
-				clientsResult: clientsResult{
-					sqlClient:    nil,
-					githubClient: nil,
-				},
-				sqlGetByError:    nil,
-				sqlInsertWHError: nil,
-				sqlInsertError:   nil,
+				getConfig:      nil,
+				config:         &cicdConfigOK,
+				sqlGetByError:  nil,
+				sqlInsertError: nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "test - config not found",
+			args: args{
+				payload: &notAllowedStatusWebhookSuccess,
+			},
+			expects: expects{
+				getConfig:      nil,
+				config:         nil,
+				sqlGetByError:  nil,
+				sqlInsertError: nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "test - Error Getting config",
+			args: args{
+				payload: &notAllowedStatusWebhookSuccess,
+			},
+			expects: expects{
+				getConfig:      apierrors.NewNotFoundApiError("config not found"),
+				config:         &cicdConfigOK,
+				sqlGetByError:  nil,
+				sqlInsertError: nil,
 			},
 			wantErr: true,
 		},
@@ -792,17 +873,12 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 			name: "test - Status webhook allowed and already exists on DB",
 			args: args{
 				payload: &allowedStatusWebhookSuccess,
-				config:  &cicdConfigOK,
 			},
-
 			expects: expects{
-				clientsResult: clientsResult{
-					sqlClient:    nil,
-					githubClient: nil,
-				},
-				sqlGetByError:    nil,
-				sqlInsertWHError: nil,
-				sqlInsertError:   nil,
+				getConfig:      nil,
+				config:         &cicdConfigOK,
+				sqlGetByError:  nil,
+				sqlInsertError: nil,
 			},
 			wantErr: true,
 		},
@@ -810,17 +886,12 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 			name: "test - Error getting webhook from DB",
 			args: args{
 				payload: &allowedStatusWebhookSuccess,
-				config:  &cicdConfigOK,
 			},
-
 			expects: expects{
-				clientsResult: clientsResult{
-					sqlClient:    nil,
-					githubClient: nil,
-				},
-				sqlGetByError:    gorm.ErrInvalidSQL,
-				sqlInsertWHError: nil,
-				sqlInsertError:   nil,
+				getConfig:      nil,
+				config:         &cicdConfigOK,
+				sqlGetByError:  gorm.ErrInvalidSQL,
+				sqlInsertError: nil,
 			},
 			wantErr: true,
 		},
@@ -828,14 +899,10 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 			name: "test - Error inserting webhook to DB",
 			args: args{
 				payload: &allowedStatusWebhookSuccess,
-				config:  &cicdConfigOK,
 			},
-
 			expects: expects{
-				clientsResult: clientsResult{
-					sqlClient:    nil,
-					githubClient: nil,
-				},
+				getConfig:      nil,
+				config:         &cicdConfigOK,
 				sqlGetByError:  gorm.ErrRecordNotFound,
 				sqlInsertError: gorm.ErrInvalidTransaction,
 			},
@@ -845,11 +912,10 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 			name: "test - Webhook save OK",
 			args: args{
 				payload: &allowedStatusWebhookSuccess,
-				config:  &cicdConfigOK,
 			},
 			expects: expects{
-				sqlGetByError:    gorm.ErrRecordNotFound,
-				sqlInsertWHError: nil,
+				config:        &cicdConfigOK,
+				sqlGetByError: gorm.ErrRecordNotFound,
 			},
 			wantErr: false,
 		},
@@ -861,6 +927,12 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 
 			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
 			githubClient := interfaces.NewMockGithubClient(ctrl)
+			configService := interfaces.NewMockConfigurationService(ctrl)
+
+			configService.EXPECT().
+				Get(gomock.Any()).
+				Return(tt.expects.config, tt.expects.getConfig).
+				AnyTimes()
 
 			sqlStorage.EXPECT().
 				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -876,10 +948,11 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 				AnyTimes()
 
 			s := &Webhook{
-				SQL:          sqlStorage,
-				GithubClient: githubClient,
+				SQL:           sqlStorage,
+				GithubClient:  githubClient,
+				ConfigService: configService,
 			}
-			_, err := s.ProcessStatusWebhook(tt.args.payload, tt.args.config)
+			_, err := s.ProcessStatusWebhook(tt.args.payload)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Webhook.ProcessStatusWebhook() error = %v, wantErr %v", err, tt.wantErr)

@@ -30,17 +30,17 @@ func Route() *gin.Engine {
 	})
 
 	//GET to /configurations/:repoName performs a release process configuration get
-	r.GET("/configurations/:repoName", func(c *gin.Context) {
+	r.GET("/configurations/:repoOwner/:repoName", func(c *gin.Context) {
 		ct.Show(c)
 	})
 
 	//PUT to /configurations/:repoName performs a release process configuration update
-	r.PUT("/configurations/:repoName", func(c *gin.Context) {
+	r.PUT("/configurations/:repoOwner/:repoName", func(c *gin.Context) {
 		ct.Update(c)
 	})
 
 	//DELETE to /configurations/:repoName performs a release process configuration delete
-	r.DELETE("/configurations/:repoName", func(c *gin.Context) {
+	r.DELETE("/configurations/:repoOwner/:repoName", func(c *gin.Context) {
 		ct.Delete(c)
 	})
 

@@ -496,3 +496,94 @@ func TestConfiguration_CheckWorkflow(t *testing.T) {
 		})
 	}
 }
+
+func TestConfiguration_UnsetWorkflow(t *testing.T) {
+	type args struct {
+		config *models.Configuration
+	}
+
+	type expects struct {
+		unprotectBranchErr apierrors.ApiError
+	}
+
+	statusList := []string{"workflow", "continuous-integration", "minimum-coverage", "pull-request-coverage"}
+
+	reqChecks := make([]models.RequireStatusCheck, 0)
+	for _, rq := range statusList {
+		reqChecks = append(reqChecks, models.RequireStatusCheck{
+			Check: rq,
+		})
+	}
+
+	codeCoverageThreadhold := 80.0
+
+	var cicdConfigOK = models.Configuration{
+		ID:                               utils.Stringify("hbalmes/ci-cd_api"),
+		RepositoryName:                   utils.Stringify("ci-cd_api"),
+		RepositoryOwner:                  utils.Stringify("hbalmes"),
+		RepositoryStatusChecks:           reqChecks,
+		WorkflowType:                     utils.Stringify("gitflow"),
+		CodeCoveragePullRequestThreshold: &codeCoverageThreadhold,
+	}
+
+	tests := []struct {
+		name    string
+		args    args
+		expects expects
+		wantErr bool
+	}{
+		{
+			name: "unprotect branch fails",
+			args: args{
+				config: &cicdConfigOK,
+			},
+			expects: expects{
+				unprotectBranchErr: apierrors.NewNotFoundApiError("Some Error"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "unprotect branch fails (branch not found)",
+			args: args{
+				config: &cicdConfigOK,
+			},
+			expects: expects{
+				unprotectBranchErr: apierrors.NewInternalServerApiError("branch not found", errors.New("branch not found")),
+			},
+			wantErr: true,
+		},
+		{
+			name: "unprotect branch success",
+			args: args{
+				config: &cicdConfigOK,
+			},
+			expects: expects{
+				unprotectBranchErr: nil,
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
+			githubClient := interfaces.NewMockGithubClient(ctrl)
+
+			githubClient.EXPECT().
+				UnprotectBranch(gomock.Any(), gomock.Any()).
+				Return(tt.expects.unprotectBranchErr).
+				AnyTimes()
+
+			c := &Configuration{
+				SQL:          sqlStorage,
+				GithubClient: githubClient,
+			}
+			if err := c.UnsetWorkflow(tt.args.config); (err != nil) != tt.wantErr {
+				t.Errorf("SetWorkflow() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

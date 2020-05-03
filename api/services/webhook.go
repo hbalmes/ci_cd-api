@@ -2,7 +2,6 @@ package services
 
 import (
 	"github.com/hbalmes/ci_cd-api/api/clients"
-	"github.com/hbalmes/ci_cd-api/api/models"
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
 	"github.com/hbalmes/ci_cd-api/api/services/storage"
 	"github.com/hbalmes/ci_cd-api/api/utils"
@@ -18,7 +17,7 @@ const (
 )
 
 type WebhookService interface {
-	ProcessStatusWebhook(payload *webhook.Status, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError)
+	ProcessStatusWebhook(payload *webhook.Status) (*webhook.Webhook, apierrors.ApiError)
 	ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook) (*webhook.Webhook, apierrors.ApiError)
 	ProcessPullRequestReviewWebhook(payload *webhook.PullRequestReviewWebhook) (*webhook.Webhook, apierrors.ApiError)
 	SavePullRequestWebhook(pullRequestWH webhook.PullRequestWebhook) apierrors.ApiError
@@ -36,17 +35,29 @@ type Webhook struct {
 //NewConfigurationSeNewWebhookServicervice initializes a WebhookService
 func NewWebhookService(sql storage.SQLStorage) *Webhook {
 	return &Webhook{
-		SQL:          sql,
-		GithubClient: clients.NewGithubClient(),
+		SQL:           sql,
+		GithubClient:  clients.NewGithubClient(),
+		ConfigService: NewConfigurationService(sql),
 	}
 }
 
 //ProcessStatusWebhook process
-func (s *Webhook) ProcessStatusWebhook(payload *webhook.Status, conf *models.Configuration) (*webhook.Webhook, apierrors.ApiError) {
+func (s *Webhook) ProcessStatusWebhook(payload *webhook.Status) (*webhook.Webhook, apierrors.ApiError) {
 
 	var wh webhook.Webhook
 
 	webhookType := "status"
+
+	//Validates that the repository has a ci cd configuration
+	conf, err := s.ConfigService.Get(*payload.Repository.FullName)
+
+	if err != nil {
+		return nil, apierrors.NewInternalServerApiError("error checking configuration existance", err)
+	}
+
+	if conf == nil {
+		return nil, apierrors.NewNotFoundApiError("error getting application ci_cd configuration")
+	}
 
 	contextAllowed := utils.ContainsStatusChecks(conf.RepositoryStatusChecks, *payload.Context)
 
@@ -98,7 +109,16 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 	var wh webhook.Webhook
 	var cf Configuration
 
-	var config models.Configuration
+	//Validates that the repository has a ci cd configuration
+	config, err := s.ConfigService.Get(*payload.Repository.FullName)
+
+	if err != nil {
+		return nil, apierrors.NewInternalServerApiError("error checking configuration existance", err)
+	}
+
+	if config == nil {
+		return nil, apierrors.NewNotFoundApiError("configuration not found for the repository")
+	}
 
 	if payload.PullRequest.Base.Ref == nil || payload.PullRequest.Head.Ref == nil {
 		return nil, apierrors.NewBadRequestApiError("Base or Head Ref cant be null")
@@ -144,11 +164,11 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 		}
 
 		switch *payload.Action {
-		case "opened":
+		case "opened", "synchronize":
 
-			statusWH := cf.CheckWorkflow(&config, payload)
+			statusWH := cf.CheckWorkflow(config, payload)
 
-			notifyStatusErr := s.GithubClient.CreateStatus(&config, statusWH)
+			notifyStatusErr := s.GithubClient.CreateStatus(config, statusWH)
 
 			if notifyStatusErr != nil {
 				return nil, apierrors.NewInternalServerApiError(notifyStatusErr.Message(), notifyStatusErr)
@@ -158,8 +178,19 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 			return nil, apierrors.NewBadRequestApiError("Action not supported yet")
 		}
 
-	} else { //If webhook already exists then return it
-		return nil, apierrors.NewConflictApiError("Resource Already exists")
+	} else {
+
+		if *payload.Action == "synchronize" {
+			statusWH := cf.CheckWorkflow(config, payload)
+
+			notifyStatusErr := s.GithubClient.CreateStatus(config, statusWH)
+
+			if notifyStatusErr != nil {
+				return nil, apierrors.NewInternalServerApiError(notifyStatusErr.Message(), notifyStatusErr)
+			}
+		} else { //If webhook already exists then return it
+			return nil, apierrors.NewConflictApiError("Resource Already exists")
+		}
 	}
 
 	return &wh, nil
@@ -170,16 +201,16 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 
 	var wh webhook.Webhook
 
-	webhookType := "pull_request_review"
+	webhookType := utils.Stringify("pull_request_review")
 
 	//Build a ID to identify a unique webhook
-	prWHBaseID := payload.Repository.FullName + payload.PullRequest.Head.Sha + webhookType + payload.Review.State
+	prWHBaseID := *payload.Repository.FullName + *payload.PullRequest.Head.Sha + *webhookType + *payload.Review.State
 	prWebhookID := utils.Stringify(utils.GetMD5Hash(prWHBaseID))
 
-	switch payload.Action {
+	switch *payload.Action {
 	case pullRequestReviewSubmittedAction:
 		//If the revision was approved. We must keep in the database
-		if payload.Review.State == approvedPullRequestReviewState {
+		if *payload.Review.State == approvedPullRequestReviewState {
 
 			//Search the status webhook into database
 			if err := s.SQL.GetBy(&wh, "id = ?", &prWebhookID); err != nil {
@@ -192,12 +223,12 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 				//Fill every field in the webhook
 				wh.ID = prWebhookID
 				//wh.GithubDeliveryID = utils.Stringify(ctx.GetHeader("X-GitHub-Delivery"))
-				wh.Type = utils.Stringify(webhookType)
-				wh.GithubRepositoryName = utils.Stringify(payload.Repository.FullName)
-				wh.SenderName = utils.Stringify(payload.Sender.Login)
-				wh.State = utils.Stringify(payload.Review.State)
-				wh.Sha = utils.Stringify(payload.PullRequest.Head.Sha)
-				wh.Description = utils.Stringify(payload.Review.Body)
+				wh.Type = webhookType
+				wh.GithubRepositoryName = payload.Repository.FullName
+				wh.SenderName = payload.Sender.Login
+				wh.State = payload.Review.State
+				wh.Sha = payload.PullRequest.Head.Sha
+				wh.Description = payload.Review.Body
 
 				//Save it into database
 				if err := s.SQL.Insert(&wh); err != nil {

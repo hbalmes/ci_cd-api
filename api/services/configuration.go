@@ -2,9 +2,11 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"github.com/hbalmes/ci_cd-api/api/clients"
 	"github.com/hbalmes/ci_cd-api/api/models"
 	"github.com/hbalmes/ci_cd-api/api/services/storage"
+	"github.com/hbalmes/ci_cd-api/api/utils"
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/jinzhu/gorm"
 )
@@ -38,12 +40,12 @@ func NewConfigurationService(sql storage.SQLStorage) *Configuration {
 func (s *Configuration) Create(r *models.PostRequestPayload) (*models.Configuration, apierrors.ApiError) {
 
 	config := *models.NewConfiguration(r)
+	config.ID = utils.Stringify(fmt.Sprintf("%s/%s", *r.Repository.Owner, *r.Repository.Name))
 
-	repoName := config.ID
 	var cf models.Configuration
 
 	//Search the configuration into database
-	if err := s.SQL.GetBy(&cf, "id = ?", *repoName); err != nil {
+	if err := s.SQL.GetBy(&cf, "id = ?", fmt.Sprintf("%s/%s", *config.RepositoryOwner, *config.RepositoryName)); err != nil {
 
 		//If the error is not a not found error, then there is a problem
 		if err != gorm.ErrRecordNotFound {
@@ -127,8 +129,11 @@ func (s *Configuration) Delete(id string) error {
 		return err
 	}
 
-	//Unset Workflow
-	//TODO: Desproteger de acuerdo al wf que tiene configurado
+	unsetWorkflowError := s.UnsetWorkflow(cf)
+
+	if unsetWorkflowError != nil {
+		return unsetWorkflowError
+	}
 
 	//Delete from configurations DB
 	if sqlErr := s.SQL.Delete(cf); sqlErr != nil {
