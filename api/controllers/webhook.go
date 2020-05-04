@@ -109,6 +109,11 @@ func (c *Webhook) CreateWebhook(ginContext *gin.Context) {
 			ginContext.JSON(http.StatusOK, whook.Marshall())
 			return
 
+		case "issue_comment", "push":
+			response := map[string]interface{}{"message": "webhook accepted"}
+			ginContext.JSON(http.StatusAccepted, response)
+			return
+
 		default:
 			ginContext.JSON(
 				http.StatusBadRequest,

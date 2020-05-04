@@ -229,6 +229,8 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 				wh.State = payload.Review.State
 				wh.Sha = payload.PullRequest.Head.Sha
 				wh.Description = payload.Review.Body
+				wh.WebhookCreateAt = payload.PullRequest.CreatedAt
+				wh.WebhookUpdated = payload.PullRequest.UpdatedAt
 
 				//Save it into database
 				if err := s.SQL.Insert(&wh); err != nil {

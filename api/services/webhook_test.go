@@ -36,8 +36,6 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 	pullRequestReviewPayloadOK.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
 	pullRequestReviewPayloadOK.PullRequest.Head.Sha = utils.Stringify("123456789asdfghjkqwertyu")
 	pullRequestReviewPayloadOK.Review.State = utils.Stringify("approved")
-	pullRequestReviewPayloadOK.PullRequest.CreatedAt = utils.Stringify("2019-05-15T15:20:33Z")
-	pullRequestReviewPayloadOK.PullRequest.UpdatedAt = utils.Stringify("2019-05-15T15:20:38Z")
 	pullRequestReviewPayloadOK.Review.Body = utils.Stringify("Aprobado")
 
 	var pullRequestReviewPayloadAlreadyExists webhook.PullRequestReviewWebhook
