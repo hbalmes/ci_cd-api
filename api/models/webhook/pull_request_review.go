@@ -1,5 +1,7 @@
 package webhook
 
+import "time"
+
 type PullRequestReviewWebhook struct {
 	Action *string `json:"action"`
 	Review struct {
@@ -19,8 +21,8 @@ type PullRequestReviewWebhook struct {
 		State              *string       `json:"state"`
 		Title              *string       `json:"title"`
 		Body               *string       `json:"body"`
-		CreatedAt          *string       `json:"created_at"`
-		UpdatedAt          *string       `json:"updated_at"`
+		CreatedAt          time.Time     `json:"created_at"`
+		UpdatedAt          time.Time     `json:"updated_at"`
 		ClosedAt           interface{}   `json:"closed_at"`
 		MergedAt           interface{}   `json:"merged_at"`
 		MergeCommitSha     *string       `json:"merge_commit_sha"`

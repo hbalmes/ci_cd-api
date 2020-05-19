@@ -36,8 +36,6 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 	pullRequestReviewPayloadOK.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
 	pullRequestReviewPayloadOK.PullRequest.Head.Sha = utils.Stringify("123456789asdfghjkqwertyu")
 	pullRequestReviewPayloadOK.Review.State = utils.Stringify("approved")
-	pullRequestReviewPayloadOK.PullRequest.CreatedAt = utils.Stringify("2019-05-15T15:20:33Z")
-	pullRequestReviewPayloadOK.PullRequest.UpdatedAt = utils.Stringify("2019-05-15T15:20:38Z")
 	pullRequestReviewPayloadOK.Review.Body = utils.Stringify("Aprobado")
 
 	var pullRequestReviewPayloadAlreadyExists webhook.PullRequestReviewWebhook
@@ -340,6 +338,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 		sqlGetByError       error
 		sqlInsertError      error
 		sqlDeleteError      error
+		sqlUpdateError      error
 		getConfig           apierrors.ApiError
 		config              *models.Configuration
 		clientsResult       clientsResult
@@ -358,6 +357,18 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 	pullRequestWebhook.PullRequest.Base.Sha = utils.Stringify("lkjhgfdsoiuytrewqmnbvcxz12345")
 	pullRequestWebhook.PullRequest.Base.Ref = utils.Stringify("develop")
 	pullRequestWebhook.PullRequest.Body = utils.Stringify("Pull request Body")
+
+	var pullRequestWebhookClosed webhook.PullRequestWebhook
+	pullRequestWebhookClosed.Number = 12345
+	pullRequestWebhookClosed.Action = utils.Stringify("closed")
+	pullRequestWebhookClosed.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequestWebhookClosed.Sender.Login = utils.Stringify("hbalmes")
+	pullRequestWebhookClosed.PullRequest.State = utils.Stringify("open")
+	pullRequestWebhookClosed.PullRequest.Head.Sha = utils.Stringify("123456789qwertyuasdfghjzxcvbn")
+	pullRequestWebhookClosed.PullRequest.Head.Ref = utils.Stringify("feature/test")
+	pullRequestWebhookClosed.PullRequest.Base.Sha = utils.Stringify("lkjhgfdsoiuytrewqmnbvcxz12345")
+	pullRequestWebhookClosed.PullRequest.Base.Ref = utils.Stringify("develop")
+	pullRequestWebhookClosed.PullRequest.Body = utils.Stringify("Pull request Body")
 
 	var pullRequestWebhookActionNotSupported webhook.PullRequestWebhook
 	pullRequestWebhookActionNotSupported.Number = 12345
@@ -475,7 +486,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 				getConfig: nil,
 				config:    &cicdConfigOK,
 				clientsResult: clientsResult{
-					sqlClient: nil,
+					sqlClient:    nil,
 					githubClient: apierrors.NewNotFoundApiError("some error"),
 				},
 				sqlGetByError: nil,
@@ -560,6 +571,39 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "test - Pull Request Already exists (closed) - update Ok",
+			args: args{
+				payload: &pullRequestWebhookClosed,
+			},
+			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
+				clientsResult: clientsResult{
+					sqlClient:    nil,
+					githubClient: apierrors.NewNotFoundApiError("some error"),
+				},
+				sqlGetByError: nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "test - Pull Request Already exists (closed) - update fail",
+			args: args{
+				payload: &pullRequestWebhookClosed,
+			},
+			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
+				clientsResult: clientsResult{
+					sqlClient:    nil,
+					githubClient: apierrors.NewNotFoundApiError("some error"),
+				},
+				sqlGetByError: nil,
+				sqlUpdateError: gorm.ErrCantStartTransaction,
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -591,6 +635,11 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			sqlStorage.EXPECT().
 				Delete(gomock.Any()).
 				Return(tt.expects.sqlDeleteError).
+				AnyTimes()
+
+			sqlStorage.EXPECT().
+				Update(gomock.Any()).
+				Return(tt.expects.sqlUpdateError).
 				AnyTimes()
 
 			githubClient.EXPECT().

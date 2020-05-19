@@ -180,7 +180,9 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 
 	} else {
 
-		if *payload.Action == "synchronize" {
+		//TODO: mejorar este codigo.
+		switch *payload.Action {
+		case "synchronize":
 			statusWH := cf.CheckWorkflow(config, payload)
 
 			notifyStatusErr := s.GithubClient.CreateStatus(config, statusWH)
@@ -188,7 +190,15 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 			if notifyStatusErr != nil {
 				return nil, apierrors.NewInternalServerApiError(notifyStatusErr.Message(), notifyStatusErr)
 			}
-		} else { //If webhook already exists then return it
+		case "closed" , "reopened":
+
+			prWH.State = payload.Action
+
+			//Update pull request state in db
+			if err := s.SQL.Update(&prWH); err != nil {
+				return nil, apierrors.NewInternalServerApiError("error updating pull request state", err)
+			}
+		default:
 			return nil, apierrors.NewConflictApiError("Resource Already exists")
 		}
 	}
@@ -229,6 +239,8 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 				wh.State = payload.Review.State
 				wh.Sha = payload.PullRequest.Head.Sha
 				wh.Description = payload.Review.Body
+				wh.WebhookCreateAt = payload.PullRequest.CreatedAt
+				wh.WebhookUpdated = payload.PullRequest.UpdatedAt
 
 				//Save it into database
 				if err := s.SQL.Insert(&wh); err != nil {
