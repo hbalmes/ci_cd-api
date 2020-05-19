@@ -3,6 +3,7 @@ module github.com/hbalmes/ci_cd-api
 go 1.12
 
 require (
+	github.com/coreos/go-semver v0.3.0
 	github.com/gin-gonic/gin v1.5.0
 	github.com/golang/mock v1.4.0
 	github.com/jinzhu/gorm v1.9.12

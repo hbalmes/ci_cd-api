@@ -111,7 +111,7 @@ type PullRequestWebhook struct {
 }
 
 type PullRequest struct {
-	ID                *int64     `gorm:"primary_key"`
+	ID                *int64     `gorm:"primary_key;AUTO_INCREMENT"`
 	PullRequestNumber *int       `json:"pull_request_number"`
 	State             *string    `json:"state"`
 	RepositoryName    *string    `json:"repository_name"`

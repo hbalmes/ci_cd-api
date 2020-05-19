@@ -12,6 +12,17 @@ func ContainsStatusChecks(s []models.RequireStatusCheck, e string) bool {
 	return false
 }
 
+//Remove a string from slice
+func Remove(s []string, r string) []string {
+	var rsc []string
+	for _, v := range s {
+		if v != r {
+			rsc = append(rsc, v)
+		}
+	}
+	return rsc
+}
+
 //Returns if a slice of string contains an string
 /*func StringContains(s []string, e string) bool {
 	for _, a := range s {
