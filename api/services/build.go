@@ -22,7 +22,7 @@ const (
 )
 
 type BuildService interface {
-	ProcessBuild(config *models.Configuration, payload *webhook.Status)
+	ProcessBuild(config *models.Configuration, payload *webhook.Status) (*models.Build, apierrors.ApiError)
 }
 
 //Build represents the BuildService layer
@@ -40,7 +40,7 @@ func NewBuildService(sql storage.SQLStorage) *Build {
 	}
 }
 
-func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Status) {
+func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Status) (*models.Build, apierrors.ApiError) {
 
 	var build models.Build
 	var latestBuild models.LatestBuild
@@ -58,7 +58,7 @@ func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Stat
 		pullRequest, err := s.GetPullRequestBySha(*payload.Sha)
 
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		//traemos el incrementador y el tipo de build
@@ -80,7 +80,7 @@ func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Stat
 		//Save it into build table
 		if err := s.SQL.Insert(&build); err != nil {
 			//TODO: add log or metric
-			return
+			return nil, apierrors.NewInternalServerApiError("something was wrong inserting new build", err)
 		}
 
 		latestBuildID, _ := strconv.Atoi(lastBuild.Metadata)
@@ -91,15 +91,17 @@ func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Stat
 		//Delete from configurations DB
 		//TODO: FIX this
 		if sqlErr := s.SQL.Delete(&latestBuild); sqlErr != nil {
-			return
+			return nil, apierrors.NewInternalServerApiError("something was wrong deleting repo latest build", err)
 		}
 
 		//Save it into latestBuild Table
 		if err := s.SQL.Update(&latestBuild); err != nil {
 			//TODO: add log or metric
-			return
+			return nil, apierrors.NewInternalServerApiError("something was wrong updating repo latest build", err)
 		}
 	}
+
+	return nil, apierrors.NewApiError("They have not yet passed all the quality controls necessary to create a new version.", "error", 206, apierrors.CauseList{})
 }
 
 func (s *Build) CheckBuildability(reqSCConfigured []string, payload *webhook.Status) bool {
@@ -239,7 +241,7 @@ func (s *Build) GetIncrementerAndType(pr *webhook.PullRequest, ) (incrementer st
 	return "minor", "test"
 }
 
-func (s *Build) IncrementSemVer(version semver.Version, incrementer string)  semver.Version {
+func (s *Build) IncrementSemVer(version semver.Version, incrementer string) semver.Version {
 
 	newVersion := version
 

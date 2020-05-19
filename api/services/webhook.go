@@ -97,7 +97,12 @@ func (s *Webhook) ProcessStatusWebhook(payload *webhook.Status) (*webhook.Webhoo
 			return nil, apierrors.NewInternalServerApiError("error saving new status webhook", err)
 		}
 
-		s.BuildService.ProcessBuild(conf, payload)
+		//TODO: Logear el build generado o insertarlo en el apartado build
+		build, _ := s.BuildService.ProcessBuild(conf, payload)
+
+		if build != nil {
+			//TODO: Logear
+		}
 
 	} else { //If webhook already exists then return it
 		return nil, apierrors.NewConflictApiError("Resource Already exists")
@@ -294,7 +299,12 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 
 	//We create the payload necessary to process the build
 	buildPayload := s.BuildStatusWebhookPayload(*payload)
-	s.BuildService.ProcessBuild(config, buildPayload)
+	//TODO: Logear el build generado o insertarlo en el apartado build
+	build, _ := s.BuildService.ProcessBuild(config, buildPayload)
+
+	if build != nil {
+		//TODO: Logear
+	}
 
 	return &wh, nil
 }
@@ -331,7 +341,7 @@ func (s *Webhook) BuildStatusWebhookPayload(pullRequestReviewWH webhook.PullRequ
 
 	//Fill every field in the status webhook with pullRequest Webhook
 	statusWebhook.Sha = pullRequestReviewWH.PullRequest.Head.Sha
-	statusWebhook.State = pullRequestReviewWH.Review.State
+	statusWebhook.State = utils.Stringify("success")
 	statusWebhook.Repository.FullName = pullRequestReviewWH.Repository.FullName
 	statusWebhook.Sender.Login = pullRequestReviewWH.Sender.Login
 
