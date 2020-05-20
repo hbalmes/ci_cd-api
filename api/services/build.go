@@ -88,8 +88,8 @@ func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Stat
 		latestBuild.BuildID = build.ID
 		latestBuild.RepositoryName = config.ID
 
-		//Delete from configurations DB
 		//TODO: FIX this
+		//Delete from configurations DB
 		if sqlErr := s.SQL.Delete(&latestBuild); sqlErr != nil {
 			return nil, apierrors.NewInternalServerApiError("something was wrong deleting repo latest build", err)
 		}
