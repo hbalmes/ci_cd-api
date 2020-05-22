@@ -1,13 +1,16 @@
 package services
 
 import (
+	"github.com/coreos/go-semver/semver"
 	"github.com/golang/mock/gomock"
 	"github.com/hbalmes/ci_cd-api/api/mocks/interfaces"
 	"github.com/hbalmes/ci_cd-api/api/models"
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
+	"github.com/hbalmes/ci_cd-api/api/services/storage"
 	"github.com/hbalmes/ci_cd-api/api/utils"
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/jinzhu/gorm"
+	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
 	"time"
@@ -15,9 +18,12 @@ import (
 
 func TestBuild_ProcessBuild(t *testing.T) {
 	type args struct {
-		payload  *webhook.Status
-		config   *models.Configuration
-		getTimes int
+		payload           *webhook.Status
+		config            *models.Configuration
+		getSCTimes        int
+		getLastBuildTimes int
+		getBuildsTimes    int
+		getPRTimes        int
 	}
 
 	type expects struct {
@@ -25,8 +31,6 @@ func TestBuild_ProcessBuild(t *testing.T) {
 		sqlGetLatestErr    error
 		sqlGetBuildErr     error
 		sqlGetPRErr        error
-		sqlInsertPRError   error
-		sqlInsertWHError   error
 		sqlDeleteError     error
 		config             *models.Configuration
 		getConfig          apierrors.ApiError
@@ -98,53 +102,57 @@ func TestBuild_ProcessBuild(t *testing.T) {
 		expects expects
 	}{
 		{
-			name: "not yet passed all the quality checks - build not created",
+			name: "not passed all the status checks yet - build not created",
 			args: args{
-				payload: &allowedStatusWebhookSuccess,
-				config:  &cicdConfigOK,
-				getTimes: 5,
+				payload:           &allowedStatusWebhookSuccess,
+				config:            &cicdConfigOK,
+				getSCTimes:        1,
+				getBuildsTimes:    0,
+				getLastBuildTimes: 0,
+				getPRTimes:        0,
 			},
 
 			expects: expects{
-				config:           &cicdConfigOK,
-				sqlGetByError:    gorm.ErrRecordNotFound,
-				sqlInsertPRError: nil,
-				sqlInsertWHError: gorm.ErrCantStartTransaction,
-				buildErr: apierrors.NewApiError("They have not yet passed all the quality controls necessary to create a new version.", "error", 206, apierrors.CauseList{}),
+				config:        &cicdConfigOK,
+				sqlGetByError: gorm.ErrRecordNotFound,
+				buildErr:      apierrors.NewApiError("They have not yet passed all the quality controls necessary to create a new version.", "error", 206, apierrors.CauseList{}),
+			},
+			wantErr: true,
+		},
+		{
+			name: "not passed all the status checks yet, db error, build not created",
+			args: args{
+				payload:           &allowedStatusWebhookSuccess,
+				config:            &cicdConfigOK,
+				getSCTimes:        1,
+				getBuildsTimes:    0,
+				getLastBuildTimes: 0,
+				getPRTimes:        0,
+			},
+
+			expects: expects{
+				config:        &cicdConfigOK,
+				sqlGetByError: gorm.ErrCantStartTransaction,
+				buildErr:      apierrors.NewApiError("They have not yet passed all the quality controls necessary to create a new version.", "error", 206, apierrors.CauseList{}),
 			},
 			wantErr: true,
 		},
 		{
 			name: "is buildable, repo without builds, error getting pull request",
 			args: args{
-				payload: &allowedStatusWebhookSuccess,
-				config:  &cicdConfigOK,
-				getTimes: 5, // Para pasar el get the status success
-			},
-
-			expects: expects{
-				config:           &cicdConfigOK,
-				sqlGetByError:    nil,
-				sqlGetLatestErr:  gorm.ErrRecordNotFound,
-				sqlInsertPRError: nil,
-				sqlInsertWHError: gorm.ErrCantStartTransaction,
-				buildErr:         apierrors.NewNotFoundApiError("pull request not found for the sha"),
-			},
-			wantErr: true,
-		},
-		{
-			name: "is buildable, repo with builds, error getting pull request",
-			args: args{
-				payload:  &allowedStatusWebhookSuccess,
-				config:   &cicdConfigOK,
-				getTimes: 5, // Para pasar el get the status success
+				payload:           &allowedStatusWebhookSuccess,
+				config:            &cicdConfigOK,
+				getSCTimes:        5,
+				getBuildsTimes:    1,
+				getLastBuildTimes: 1,
+				getPRTimes:        1,
 			},
 
 			expects: expects{
 				config:          &cicdConfigOK,
 				sqlGetByError:   nil,
 				sqlGetLatestErr: nil,
-				sqlGetBuildErr:  nil,
+				sqlGetPRErr:     gorm.ErrRecordNotFound,
 				buildErr:        apierrors.NewNotFoundApiError("pull request not found for the sha"),
 			},
 			wantErr: true,
@@ -164,7 +172,7 @@ func TestBuild_ProcessBuild(t *testing.T) {
 						return &webhookOK
 					}).
 					Return(tt.expects.sqlGetByError).
-					Times(tt.args.getTimes),
+					Times(tt.args.getSCTimes),
 
 				sqlStorage.EXPECT().
 					GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -172,7 +180,7 @@ func TestBuild_ProcessBuild(t *testing.T) {
 						return &latestBuild
 					}).
 					Return(tt.expects.sqlGetLatestErr).
-					Times(1),
+					Times(tt.args.getLastBuildTimes),
 
 				sqlStorage.EXPECT().
 					GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -180,25 +188,15 @@ func TestBuild_ProcessBuild(t *testing.T) {
 						return &buildOK
 					}).
 					Return(tt.expects.sqlGetBuildErr).
-					Times(1),
+					Times(tt.args.getBuildsTimes),
 
 				sqlStorage.EXPECT().
 					GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(e interface{}, qry ...interface{}) *webhook.PullRequest {
-						return &pullRequest
+						return tt.expects.pullRequestWebhook
 					}).
-					Return(tt.expects.sqlGetLatestErr).
-					Times(1),
-
-				sqlStorage.EXPECT().
-					Insert(gomock.Any()).
-					Return(tt.expects.sqlInsertPRError).
-					AnyTimes(),
-
-				sqlStorage.EXPECT().
-					Insert(gomock.Any()).
-					Return(tt.expects.sqlInsertWHError).
-					AnyTimes(),
+					Return(tt.expects.sqlGetPRErr).
+					Times(tt.args.getPRTimes),
 			)
 
 			s := &Build{
@@ -210,6 +208,205 @@ func TestBuild_ProcessBuild(t *testing.T) {
 			}
 			if !reflect.DeepEqual(buildErr, tt.expects.buildErr) {
 				t.Errorf("ProcessBuild() got1 = %v, want %v", buildErr, tt.expects.buildErr)
+			}
+		})
+	}
+}
+
+func TestBuild_CreateInitialBuild(t *testing.T) {
+	type fields struct {
+		SQL storage.SQLStorage
+	}
+
+	type args struct {
+		config *models.Configuration
+	}
+
+	type expects struct {
+		buildResult *models.Build
+	}
+
+	statusList := []string{"workflow", "continuous-integration", "minimum-coverage", "pull-request-coverage"}
+
+	reqChecks := make([]models.RequireStatusCheck, 0)
+	for _, rq := range statusList {
+		reqChecks = append(reqChecks, models.RequireStatusCheck{
+			Check: rq,
+		})
+	}
+
+	codeCoverageThreadhold := 80.0
+
+	cicdConfigOK := models.Configuration{
+		ID:                               utils.Stringify("ci-cd_api"),
+		RepositoryName:                   utils.Stringify("ci-cd_api"),
+		RepositoryOwner:                  utils.Stringify("hbalmes"),
+		RepositoryStatusChecks:           reqChecks,
+		WorkflowType:                     utils.Stringify("gitflow"),
+		CodeCoveragePullRequestThreshold: &codeCoverageThreadhold,
+		CreatedAt:                        time.Time{},
+		UpdatedAt:                        time.Time{},
+	}
+
+	var buildOK models.Build
+	buildOK.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	buildOK.Status = utils.Stringify("pending")
+	buildOK.Username = utils.Stringify("hbalmes")
+	buildOK.RepositoryName = utils.Stringify("ci-cd_api")
+	buildOK.Major = 0
+	buildOK.Minor = 0
+	buildOK.Patch = 0
+	buildOK.Branch = utils.Stringify("feature/lalala")
+	buildOK.Type = utils.Stringify("productive")
+
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		expects expects
+	}{
+		{
+			name: "create a initial build ok",
+			args: args{
+				config: &cicdConfigOK,
+			},
+			expects: expects{
+				buildResult: &buildOK,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Build{
+				SQL: tt.fields.SQL,
+			}
+
+			got := s.CreateInitialBuild(tt.args.config)
+
+			if got != nil {
+				assert.Equal(t, uint8(0), tt.expects.buildResult.Major, "the Major should be equals")
+				assert.Equal(t, uint16(0), tt.expects.buildResult.Minor, "the Minor should be equals")
+				assert.Equal(t, uint16(0), tt.expects.buildResult.Patch, "the Patch should be equals")
+				assert.Equal(t, "pending", *tt.expects.buildResult.Status, "the apps should be equals")
+				assert.Equal(t, "ci-cd_api", *tt.expects.buildResult.RepositoryName, "the repo URLs should be equals")
+				assert.Equal(t, "productive", *tt.expects.buildResult.Type, "the repo URLs should be equals")
+			}
+
+		})
+	}
+}
+
+func TestBuild_IncrementSemVer(t *testing.T) {
+	type fields struct {
+		SQL storage.SQLStorage
+	}
+	type args struct {
+		version     semver.Version
+		incrementer string
+	}
+
+	type expects struct {
+		versionRes   semver.Version
+	}
+
+	var initialSemVer semver.Version
+	initialSemVer.Major = 0
+	initialSemVer.Minor = 1
+	initialSemVer.Patch = 0
+	initialSemVer.Metadata = ""
+
+	var majorSemVer semver.Version
+	majorSemVer.Major = 1
+	majorSemVer.Minor = 0
+	majorSemVer.Patch = 0
+	majorSemVer.Metadata = ""
+
+	var minorSemVer semver.Version
+	minorSemVer.Major = 0
+	minorSemVer.Minor = 2
+	minorSemVer.Patch = 0
+	minorSemVer.Metadata = ""
+
+	var patchSemVer semver.Version
+	patchSemVer.Major = 0
+	patchSemVer.Minor = 1
+	patchSemVer.Patch = 1
+	patchSemVer.Metadata = ""
+
+	var complexSemVer semver.Version
+	complexSemVer.Major = 4
+	complexSemVer.Minor = 7
+	complexSemVer.Patch = 8
+	complexSemVer.Metadata = ""
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		expects expects
+	}{
+		{
+			name: "create a version incrementing major",
+			args: args{
+				version: initialSemVer,
+				incrementer: "major",
+			},
+			expects: expects{
+				versionRes: majorSemVer,
+			},
+		},
+		{
+			name: "create a version incrementing minor",
+			args: args{
+				version: initialSemVer,
+				incrementer: "minor",
+			},
+			expects: expects{
+				versionRes: minorSemVer,
+			},
+		},
+		{
+			name: "create a version incrementing patch",
+			args: args{
+				version: initialSemVer,
+				incrementer: "patch",
+			},
+			expects: expects{
+				versionRes: patchSemVer,
+			},
+		},
+		{
+			name: "create a version incrementing major on a complex version",
+			args: args{
+				version: complexSemVer,
+				incrementer: "major",
+			},
+			expects: expects{
+				versionRes: semver.Version{
+					Major:      5,
+					Minor:      0,
+					Patch:      0,
+				},
+			},
+		},
+		{
+			name: "create a version incrementing minor",
+			args: args{
+				version: initialSemVer,
+				incrementer: "lalala",
+			},
+			expects: expects{
+				versionRes: minorSemVer,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Build{
+				SQL: tt.fields.SQL,
+			}
+			if got := s.IncrementSemVer(tt.args.version, tt.args.incrementer); !reflect.DeepEqual(got, tt.expects.versionRes) {
+				t.Errorf("IncrementSemVer() = %v, want %v", got, tt.expects.versionRes)
 			}
 		})
 	}
