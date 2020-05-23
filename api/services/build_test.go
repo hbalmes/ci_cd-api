@@ -306,7 +306,7 @@ func TestBuild_IncrementSemVer(t *testing.T) {
 	}
 
 	type expects struct {
-		versionRes   semver.Version
+		versionRes semver.Version
 	}
 
 	var initialSemVer semver.Version
@@ -340,15 +340,15 @@ func TestBuild_IncrementSemVer(t *testing.T) {
 	complexSemVer.Metadata = ""
 
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
+		name    string
+		fields  fields
+		args    args
 		expects expects
 	}{
 		{
 			name: "create a version incrementing major",
 			args: args{
-				version: initialSemVer,
+				version:     initialSemVer,
 				incrementer: "major",
 			},
 			expects: expects{
@@ -358,7 +358,7 @@ func TestBuild_IncrementSemVer(t *testing.T) {
 		{
 			name: "create a version incrementing minor",
 			args: args{
-				version: initialSemVer,
+				version:     initialSemVer,
 				incrementer: "minor",
 			},
 			expects: expects{
@@ -368,7 +368,7 @@ func TestBuild_IncrementSemVer(t *testing.T) {
 		{
 			name: "create a version incrementing patch",
 			args: args{
-				version: initialSemVer,
+				version:     initialSemVer,
 				incrementer: "patch",
 			},
 			expects: expects{
@@ -378,21 +378,21 @@ func TestBuild_IncrementSemVer(t *testing.T) {
 		{
 			name: "create a version incrementing major on a complex version",
 			args: args{
-				version: complexSemVer,
+				version:     complexSemVer,
 				incrementer: "major",
 			},
 			expects: expects{
 				versionRes: semver.Version{
-					Major:      5,
-					Minor:      0,
-					Patch:      0,
+					Major: 5,
+					Minor: 0,
+					Patch: 0,
 				},
 			},
 		},
 		{
 			name: "create a version incrementing minor",
 			args: args{
-				version: initialSemVer,
+				version:     initialSemVer,
 				incrementer: "lalala",
 			},
 			expects: expects{
@@ -407,6 +407,158 @@ func TestBuild_IncrementSemVer(t *testing.T) {
 			}
 			if got := s.IncrementSemVer(tt.args.version, tt.args.incrementer); !reflect.DeepEqual(got, tt.expects.versionRes) {
 				t.Errorf("IncrementSemVer() = %v, want %v", got, tt.expects.versionRes)
+			}
+		})
+	}
+}
+
+func TestBuild_GetLatestBuild(t *testing.T) {
+
+	type args struct {
+		config   *models.Configuration
+		getTimes int
+	}
+
+	type expects struct {
+		versionRes      *semver.Version
+		sqlGetLatestErr error
+		sqlGetBuildErr  error
+	}
+
+	statusList := []string{"workflow", "continuous-integration", "minimum-coverage", "pull-request-coverage"}
+
+	reqChecks := make([]models.RequireStatusCheck, 0)
+	for _, rq := range statusList {
+		reqChecks = append(reqChecks, models.RequireStatusCheck{
+			Check: rq,
+		})
+	}
+
+	codeCoverageThreadhold := 80.0
+
+	cicdConfigOK := models.Configuration{
+		ID:                               utils.Stringify("ci-cd_api"),
+		RepositoryName:                   utils.Stringify("ci-cd_api"),
+		RepositoryOwner:                  utils.Stringify("hbalmes"),
+		RepositoryStatusChecks:           reqChecks,
+		WorkflowType:                     utils.Stringify("gitflow"),
+		CodeCoveragePullRequestThreshold: &codeCoverageThreadhold,
+		CreatedAt:                        time.Time{},
+		UpdatedAt:                        time.Time{},
+	}
+
+	var latestBuild models.LatestBuild
+	latestBuild.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	latestBuild.BuildID = 1
+
+	var initialSemVer semver.Version
+	initialSemVer.Major = 0
+	initialSemVer.Minor = 0
+	initialSemVer.Patch = 0
+	initialSemVer.Metadata = "0"
+
+	var buildOK models.Build
+	buildOK.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	buildOK.Status = utils.Stringify("pending")
+	buildOK.Username = utils.Stringify("hbalmes")
+	buildOK.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	buildOK.Major = 0
+	buildOK.Minor = 1
+	buildOK.Patch = 0
+	buildOK.Branch = utils.Stringify("feature/lalala")
+	buildOK.Type = utils.Stringify("test")
+
+	tests := []struct {
+		name    string
+		args    args
+		expects expects
+	}{
+		{
+			name: "latest build getted ok, but fail getting build, create initial build",
+			args: args{
+				config:   &cicdConfigOK,
+				getTimes: 1,
+			},
+			expects: expects{
+				versionRes:     &initialSemVer,
+				sqlGetBuildErr: gorm.ErrRecordNotFound,
+			},
+		},
+		{
+			name: "latest build fails, create initial build",
+			args: args{
+				config:   &cicdConfigOK,
+				getTimes: 0,
+			},
+			expects: expects{
+				versionRes:      &initialSemVer,
+				sqlGetLatestErr: gorm.ErrCantStartTransaction,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
+
+			gomock.InOrder(
+				sqlStorage.EXPECT().
+					GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(e interface{}, qry ...interface{}) *models.LatestBuild {
+						return &latestBuild
+					}).
+					Return(tt.expects.sqlGetLatestErr).
+					Times(1),
+
+				sqlStorage.EXPECT().
+					GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(e interface{}, qry ...interface{}) *models.Build {
+						return &buildOK
+					}).
+					Return(tt.expects.sqlGetBuildErr).
+					Times(tt.args.getTimes),
+			)
+
+			s := &Build{
+				SQL: sqlStorage,
+			}
+			if got := s.GetLatestBuild(tt.args.config); !reflect.DeepEqual(got, tt.expects.versionRes) {
+				t.Errorf("GetLatestBuild() = %v, want %v", got, tt.expects.versionRes)
+			}
+		})
+	}
+}
+
+func TestBuild_GetIncrementerAndType(t *testing.T) {
+	type fields struct {
+		SQL storage.SQLStorage
+	}
+	type args struct {
+		pr *webhook.PullRequest
+	}
+	tests := []struct {
+		name            string
+		fields          fields
+		args            args
+		wantIncrementer string
+		wantBuildType   string
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Build{
+				SQL: tt.fields.SQL,
+			}
+			gotIncrementer, gotBuildType := s.GetIncrementerAndType(tt.args.pr)
+			if gotIncrementer != tt.wantIncrementer {
+				t.Errorf("GetIncrementerAndType() gotIncrementer = %v, want %v", gotIncrementer, tt.wantIncrementer)
+			}
+			if gotBuildType != tt.wantBuildType {
+				t.Errorf("GetIncrementerAndType() gotBuildType = %v, want %v", gotBuildType, tt.wantBuildType)
 			}
 		})
 	}
