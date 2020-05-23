@@ -42,8 +42,6 @@ func NewBuildService(sql storage.SQLStorage) *Build {
 
 func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Status) (*models.Build, apierrors.ApiError) {
 
-	var build models.Build
-	var latestBuild models.LatestBuild
 	//First check if all status checks configured pass
 	buildeableSChecks := s.GetBuildeableStatusChecks(config)
 
@@ -65,40 +63,19 @@ func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Stat
 		incrementer, buildType := s.GetIncrementerAndType(pullRequest)
 		newSemVer := s.IncrementSemVer(*lastBuild, incrementer)
 
-		build.Major = uint8(newSemVer.Major)
-		build.Minor = uint16(newSemVer.Minor)
-		build.Patch = uint16(newSemVer.Patch)
-		build.Status = utils.Stringify(initialBuildStatus)
-		build.Sha = pullRequest.HeadSha
-		build.Type = utils.Stringify(buildType)
-		build.RepositoryName = payload.Repository.FullName
-		build.UpdatedAt = utils.Stringify(time.Now().Format("2006-01-02 15:04:05"))
-		build.CreatedAt = utils.Stringify(time.Now().Format("2006-01-02 15:04:05"))
-		build.Branch = pullRequest.HeadRef
-		build.Username = pullRequest.CreatedBy
+		build, err := s.CreateAndSaveBuild(pullRequest, newSemVer, buildType)
 
-		//Save it into build table
-		if err := s.SQL.Insert(&build); err != nil {
-			//TODO: add log or metric
-			return nil, apierrors.NewInternalServerApiError("something was wrong inserting new build", err)
+		if err != nil {
+			return nil, err
 		}
 
-		latestBuildID, _ := strconv.Atoi(lastBuild.Metadata)
-		latestBuild.ID = uint16(latestBuildID)
-		latestBuild.BuildID = build.ID
-		latestBuild.RepositoryName = config.ID
+		saveLatestErr := s.CreateAndSaveLatestBuild(build, lastBuild)
 
-		//TODO: FIX this
-		//Delete from configurations DB
-		if sqlErr := s.SQL.Delete(&latestBuild); sqlErr != nil {
-			return nil, apierrors.NewInternalServerApiError("something was wrong deleting repo latest build", err)
+		if saveLatestErr != nil {
+			return nil, err
 		}
 
-		//Save it into latestBuild Table
-		if err := s.SQL.Update(&latestBuild); err != nil {
-			//TODO: add log or metric
-			return nil, apierrors.NewInternalServerApiError("something was wrong updating repo latest build", err)
-		}
+		return build, nil
 	}
 
 	return nil, apierrors.NewApiError("They have not yet passed all the quality controls necessary to create a new version.", "error", 206, apierrors.CauseList{})
@@ -205,18 +182,18 @@ func (s *Build) GetPullRequestBySha(sha string) (pullRequestWebhook *webhook.Pul
 	return &pullRequest, nil
 }
 
-func (s *Build) GetIncrementerAndType(pr *webhook.PullRequest, ) (incrementer string, buildType string) {
+func (s *Build) GetIncrementerAndType(pr *webhook.PullRequest) (incrementer string, buildType string) {
 
 	switch *pr.BaseRef {
 	case "master":
 		buildType = "productive"
 
-		if strings.HasPrefix("release/", *pr.HeadRef) {
+		if strings.HasPrefix(*pr.HeadRef, "release/") {
 			return "minor", buildType
 		}
 
-		if strings.HasPrefix("hotfix/", *pr.HeadRef) {
-			return "path", buildType
+		if strings.HasPrefix( *pr.HeadRef, "hotfix/") {
+			return "patch", buildType
 		}
 	case "develop":
 		buildType = "test"
@@ -257,4 +234,49 @@ func (s *Build) IncrementSemVer(version semver.Version, incrementer string) semv
 	}
 
 	return newVersion
+}
+
+func (s *Build) CreateAndSaveBuild(pullRequest *webhook.PullRequest, newSemVer semver.Version, buildType string) (*models.Build, apierrors.ApiError) {
+	var build models.Build
+
+	build.Major = uint8(newSemVer.Major)
+	build.Minor = uint16(newSemVer.Minor)
+	build.Patch = uint16(newSemVer.Patch)
+	build.Status = utils.Stringify(initialBuildStatus)
+	build.Sha = pullRequest.HeadSha
+	build.Type = utils.Stringify(buildType)
+	build.RepositoryName = pullRequest.RepositoryName
+	build.UpdatedAt = utils.Stringify(time.Now().Format("2006-01-02 15:04:05"))
+	build.CreatedAt = utils.Stringify(time.Now().Format("2006-01-02 15:04:05"))
+	build.Branch = pullRequest.HeadRef
+	build.Username = pullRequest.CreatedBy
+
+	//Save it into build table
+	if err := s.SQL.Insert(&build); err != nil {
+		return nil, apierrors.NewInternalServerApiError("something was wrong inserting new build", err)
+	}
+
+	return &build, nil
+}
+
+func (s *Build) CreateAndSaveLatestBuild(build *models.Build, lastBuild *semver.Version) apierrors.ApiError{
+
+	var latestBuild models.LatestBuild
+	latestBuildID, _ := strconv.Atoi(lastBuild.Metadata)
+	latestBuild.ID = uint16(latestBuildID)
+	latestBuild.BuildID = build.ID
+	latestBuild.RepositoryName = build.RepositoryName
+
+	//TODO: FIX this please
+	//Delete from configurations DB
+	if sqlErr := s.SQL.Delete(&latestBuild); sqlErr != nil {
+		return apierrors.NewInternalServerApiError("something was wrong deleting repo latest build", sqlErr)
+	}
+
+	//Save it into latestBuild Table
+	if err := s.SQL.Update(&latestBuild); err != nil {
+		return apierrors.NewInternalServerApiError("something was wrong updating repo latest build", err)
+	}
+
+	return nil
 }

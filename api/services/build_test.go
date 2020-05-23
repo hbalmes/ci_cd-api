@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"github.com/coreos/go-semver/semver"
 	"github.com/golang/mock/gomock"
 	"github.com/hbalmes/ci_cd-api/api/mocks/interfaces"
@@ -533,32 +534,431 @@ func TestBuild_GetLatestBuild(t *testing.T) {
 }
 
 func TestBuild_GetIncrementerAndType(t *testing.T) {
-	type fields struct {
-		SQL storage.SQLStorage
-	}
+
 	type args struct {
 		pr *webhook.PullRequest
 	}
+
+	type expects struct {
+		incrementer string
+		buildType   string
+	}
+
+	var prBaseMasterHeadRelease webhook.PullRequest
+	prBaseMasterHeadRelease.BaseRef = utils.Stringify("master")
+	prBaseMasterHeadRelease.HeadRef = utils.Stringify("release/lala")
+
+	var prBaseMasterHeadHotfix webhook.PullRequest
+	prBaseMasterHeadHotfix.BaseRef = utils.Stringify("master")
+	prBaseMasterHeadHotfix.HeadRef = utils.Stringify("hotfix/lala")
+
+	var prBaseDevelopHeadFeature webhook.PullRequest
+	prBaseDevelopHeadFeature.BaseRef = utils.Stringify("develop")
+	prBaseDevelopHeadFeature.HeadRef = utils.Stringify("feature/lala")
+
+	var prBaseDevelopHeadEnhancement webhook.PullRequest
+	prBaseDevelopHeadEnhancement.BaseRef = utils.Stringify("develop")
+	prBaseDevelopHeadEnhancement.HeadRef = utils.Stringify("enhancement/lala")
+
+	var prBaseDevelopHeadFix webhook.PullRequest
+	prBaseDevelopHeadFix.BaseRef = utils.Stringify("develop")
+	prBaseDevelopHeadFix.HeadRef = utils.Stringify("fix/lala")
+
+	var prBaseDevelopHeadBugFix webhook.PullRequest
+	prBaseDevelopHeadBugFix.BaseRef = utils.Stringify("develop")
+	prBaseDevelopHeadBugFix.HeadRef = utils.Stringify("bugfix/lala")
+
+	var prBaseLalalaHeadLalala webhook.PullRequest
+	prBaseLalalaHeadLalala.BaseRef = utils.Stringify("lalala")
+	prBaseLalalaHeadLalala.HeadRef = utils.Stringify("lalalala2")
+
 	tests := []struct {
-		name            string
-		fields          fields
-		args            args
-		wantIncrementer string
-		wantBuildType   string
+		name    string
+		args    args
+		expects expects
 	}{
-		// TODO: Add test cases.
+		{
+			name: "pr with base master head release, returns type productive and minor incrementer",
+			args: args{
+				pr: &prBaseMasterHeadRelease,
+			},
+			expects: expects{
+				incrementer: "minor",
+				buildType:   "productive",
+			},
+		},
+		{
+			name: "pr with base master head hotfix, returns type productive and patch incrementer",
+			args: args{
+				pr: &prBaseMasterHeadHotfix,
+			},
+			expects: expects{
+				incrementer: "patch",
+				buildType:   "productive",
+			},
+		},
+		{
+			name: "pr with base develop head feature, returns type test and patch minor",
+			args: args{
+				pr: &prBaseDevelopHeadFeature,
+			},
+			expects: expects{
+				incrementer: "minor",
+				buildType:   "test",
+			},
+		},
+		{
+			name: "pr with base develop head enhancement, returns type test and patch minor",
+			args: args{
+				pr: &prBaseDevelopHeadEnhancement,
+			},
+			expects: expects{
+				incrementer: "minor",
+				buildType:   "test",
+			},
+		},
+		{
+			name: "pr with base develop head bugfix, returns type test and patch minor",
+			args: args{
+				pr: &prBaseDevelopHeadBugFix,
+			},
+			expects: expects{
+				incrementer: "patch",
+				buildType:   "test",
+			},
+		},
+		{
+			name: "pr with base develop head fix, returns type test and patch minor",
+			args: args{
+				pr: &prBaseDevelopHeadFix,
+			},
+			expects: expects{
+				incrementer: "patch",
+				buildType:   "test",
+			},
+		},
+		{
+			name: "pr with base lalala head lalala, returns type test and patch minor",
+			args: args{
+				pr: &prBaseLalalaHeadLalala,
+			},
+			expects: expects{
+				incrementer: "minor",
+				buildType:   "test",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
+
 			s := &Build{
-				SQL: tt.fields.SQL,
+				SQL: sqlStorage,
 			}
 			gotIncrementer, gotBuildType := s.GetIncrementerAndType(tt.args.pr)
-			if gotIncrementer != tt.wantIncrementer {
-				t.Errorf("GetIncrementerAndType() gotIncrementer = %v, want %v", gotIncrementer, tt.wantIncrementer)
+			if gotIncrementer != tt.expects.incrementer {
+				t.Errorf("GetIncrementerAndType() gotIncrementer = %v, want %v", gotIncrementer, tt.expects.incrementer)
 			}
-			if gotBuildType != tt.wantBuildType {
-				t.Errorf("GetIncrementerAndType() gotBuildType = %v, want %v", gotBuildType, tt.wantBuildType)
+			if gotBuildType != tt.expects.buildType {
+				t.Errorf("GetIncrementerAndType() gotBuildType = %v, want %v", gotBuildType, tt.expects.buildType)
+			}
+		})
+	}
+}
+
+func TestBuild_GetPullRequestBySha(t *testing.T) {
+
+	type args struct {
+		sha string
+	}
+
+	type expects struct {
+		wantPullRequestWebhook *webhook.PullRequest
+		wantApiError           apierrors.ApiError
+		sqlGetErr              error
+	}
+
+	var pullRequest webhook.PullRequest
+	pullRequest.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequest.State = utils.Stringify("open")
+	pullRequest.HeadSha = utils.Stringify("123456789asdfghjkqwertyu")
+	pullRequest.CreatedBy = utils.Stringify("hbalmes")
+
+	var emptyPr webhook.PullRequest
+
+	tests := []struct {
+		name    string
+		expects expects
+		args    args
+	}{
+		{
+			name: "error getting pull request by sha",
+			args: args{
+				sha: "1234567wertyasdfghzxcvb",
+			},
+			expects: expects{
+				wantPullRequestWebhook: &emptyPr,
+				sqlGetErr:              gorm.ErrCantStartTransaction,
+				wantApiError:           apierrors.NewInternalServerApiError("error getting pull request", errors.New("can't start transaction")),
+			},
+		},
+		{
+			name: "pull request not found for sha",
+			args: args{
+				sha: "1234567wertyasdfghzxcvb",
+			},
+			expects: expects{
+				wantPullRequestWebhook: &emptyPr,
+				sqlGetErr:              gorm.ErrRecordNotFound,
+				wantApiError:           apierrors.NewNotFoundApiError("pull request not found for the sha"),
+			},
+		},
+		{
+			name: "pull request getted successfully",
+			args: args{
+				sha: "1234567wertyasdfghzxcvb",
+			},
+			expects: expects{
+				wantPullRequestWebhook: &pullRequest,
+				sqlGetErr:              nil,
+				wantApiError:           nil,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
+
+			s := &Build{
+				SQL: sqlStorage,
+			}
+
+			sqlStorage.EXPECT().
+				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(e interface{}, qry ...interface{}) webhook.PullRequest {
+					return *tt.expects.wantPullRequestWebhook
+				}).
+				Return(tt.expects.sqlGetErr).
+				AnyTimes()
+
+			_, gotApiError := s.GetPullRequestBySha(tt.args.sha)
+			if !reflect.DeepEqual(gotApiError, tt.expects.wantApiError) {
+				t.Errorf("GetPullRequestBySha() gotApiError = %v, want %v", gotApiError, tt.expects.wantApiError)
+			}
+		})
+	}
+}
+
+func TestBuild_CreateAndSaveBuild(t *testing.T) {
+
+	type args struct {
+		pullRequest *webhook.PullRequest
+		newSemVer   semver.Version
+		buildType   string
+	}
+
+	type expects struct {
+		wantBuild      *models.Build
+		wantApiErr     apierrors.ApiError
+		sqlInsertError error
+	}
+
+	var pullRequest webhook.PullRequest
+	pullRequest.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	pullRequest.State = utils.Stringify("open")
+	pullRequest.HeadSha = utils.Stringify("123456789asdfghjkqwertyu")
+	pullRequest.CreatedBy = utils.Stringify("hbalmes")
+	pullRequest.HeadRef = utils.Stringify("release/lalala")
+	pullRequest.BaseRef = utils.Stringify("master")
+
+	var initialSemVer semver.Version
+	initialSemVer.Major = 0
+	initialSemVer.Minor = 1
+	initialSemVer.Patch = 0
+	initialSemVer.Metadata = ""
+
+	var buildOK models.Build
+	buildOK.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	buildOK.Status = utils.Stringify("pending")
+	buildOK.Username = utils.Stringify("hbalmes")
+	buildOK.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	buildOK.Major = 0
+	buildOK.Minor = 1
+	buildOK.Patch = 0
+	buildOK.Branch = utils.Stringify("release/lalala")
+	buildOK.Type = utils.Stringify("productive")
+	buildOK.ID = 0
+
+	tests := []struct {
+		name    string
+		args    args
+		expects expects
+	}{
+		{
+			name: "build created and saved successfully",
+			args: args{
+				pullRequest: &pullRequest,
+				newSemVer:   initialSemVer,
+				buildType:   "productive",
+			},
+			expects: expects{
+				wantBuild: &buildOK,
+			},
+		},
+		{
+			name: "error creating build, error inserting build to db",
+			args: args{
+				pullRequest: &pullRequest,
+				newSemVer:   initialSemVer,
+				buildType:   "productive",
+			},
+			expects: expects{
+				wantBuild:      nil,
+				wantApiErr:     apierrors.NewInternalServerApiError("something was wrong inserting new build", errors.New("record not found")),
+				sqlInsertError: gorm.ErrRecordNotFound,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
+
+			sqlStorage.EXPECT().
+				Insert(gomock.Any()).
+				Return(tt.expects.sqlInsertError).
+				AnyTimes()
+
+			s := &Build{
+				SQL: sqlStorage,
+			}
+
+			got, got1 := s.CreateAndSaveBuild(tt.args.pullRequest, tt.args.newSemVer, tt.args.buildType)
+
+			if got != nil {
+				assert.Equal(t, utils.Stringify("123456789asdfghjkqwertyu"), tt.expects.wantBuild.Sha)
+				assert.Equal(t, utils.Stringify("pending"), tt.expects.wantBuild.Status)
+				assert.Equal(t, utils.Stringify("hbalmes"), tt.expects.wantBuild.Username)
+				assert.Equal(t, utils.Stringify("hbalmes/ci-cd_api"), tt.expects.wantBuild.RepositoryName)
+				assert.Equal(t, uint8(0), tt.expects.wantBuild.Major)
+				assert.Equal(t, uint16(1), tt.expects.wantBuild.Minor)
+				assert.Equal(t, uint16(0), tt.expects.wantBuild.Patch)
+				assert.Equal(t, utils.Stringify("release/lalala"), tt.expects.wantBuild.Branch)
+				assert.Equal(t, utils.Stringify("productive"), tt.expects.wantBuild.Type)
+			}
+			if !reflect.DeepEqual(got1, tt.expects.wantApiErr) {
+				t.Errorf("CreateAndSaveBuild() got1 = %v, want %v", got1, tt.expects.wantApiErr)
+			}
+		})
+	}
+}
+
+func TestBuild_CreateAndSaveLatestBuild(t *testing.T) {
+	type args struct {
+		build     *models.Build
+		lastBuild semver.Version
+	}
+
+	type expects struct {
+		wantApiErr     apierrors.ApiError
+		sqlDeleteError error
+		sqlUpdateError error
+	}
+
+	var lastSemVer semver.Version
+	lastSemVer.Major = 0
+	lastSemVer.Minor = 1
+	lastSemVer.Patch = 0
+	lastSemVer.Metadata = ""
+
+	var buildOK models.Build
+	buildOK.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	buildOK.Status = utils.Stringify("pending")
+	buildOK.Username = utils.Stringify("hbalmes")
+	buildOK.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	buildOK.Major = 0
+	buildOK.Minor = 1
+	buildOK.Patch = 0
+	buildOK.Branch = utils.Stringify("release/lalala")
+	buildOK.Type = utils.Stringify("productive")
+	buildOK.ID = 0
+
+	tests := []struct {
+		name    string
+		args    args
+		expects expects
+	}{
+		{
+			name: "error deleting lastBuild",
+			args: args{
+				build:     &buildOK,
+				lastBuild: lastSemVer,
+			},
+			expects: expects{
+				wantApiErr:     apierrors.NewInternalServerApiError("something was wrong deleting repo latest build", errors.New("can't start transaction")),
+				sqlDeleteError: gorm.ErrCantStartTransaction,
+				sqlUpdateError: nil,
+			},
+		},
+		{
+			name: "error updating lastBuild",
+			args: args{
+				build:     &buildOK,
+				lastBuild: lastSemVer,
+			},
+			expects: expects{
+				wantApiErr:     apierrors.NewInternalServerApiError("something was wrong updating repo latest build", errors.New("can't start transaction")),
+				sqlDeleteError: nil,
+				sqlUpdateError: gorm.ErrCantStartTransaction,
+			},
+		},
+		{
+			name: "last build created successfully",
+			args: args{
+				build:     &buildOK,
+				lastBuild: lastSemVer,
+			},
+			expects: expects{
+				wantApiErr:     nil,
+				sqlDeleteError: nil,
+				sqlUpdateError: nil,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
+
+			sqlStorage.EXPECT().
+				Delete(gomock.Any()).
+				Return(tt.expects.sqlDeleteError).
+				AnyTimes()
+
+			sqlStorage.EXPECT().
+				Update(gomock.Any()).
+				Return(tt.expects.sqlUpdateError).
+				AnyTimes()
+
+			s := &Build{
+				SQL: sqlStorage,
+			}
+
+			if got := s.CreateAndSaveLatestBuild(tt.args.build, &tt.args.lastBuild); !reflect.DeepEqual(got, tt.expects.wantApiErr) {
+				t.Errorf("CreateAndSaveLatestBuild() = %v, want %v", got, tt.expects.wantApiErr)
 			}
 		})
 	}
