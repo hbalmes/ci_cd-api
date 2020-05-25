@@ -1058,7 +1058,7 @@ func TestBuild_getIssueCommentBody(t *testing.T) {
 				SQL:          sqlStorage,
 				GithubClient: ghClient,
 			}
-			if got := s.getIssueCommentBody(tt.args.build); got != tt.expects.bodyResult {
+			if got := s.GetIssueCommentBody(tt.args.build); got != tt.expects.bodyResult {
 				t.Errorf("getIssueCommentBody() = %v, want %v", got, tt.expects.bodyResult)
 			}
 		})
