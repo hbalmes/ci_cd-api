@@ -44,6 +44,9 @@ func NewBuildService(sql storage.SQLStorage) *Build {
 	}
 }
 
+//ProcessBuild checks if all quality checks passed, and creates a build
+//For this checks quality checks like (coverage, ci, workflow and pull request review approved)
+//Find the latest created build and increment the semver number following the configuration
 func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Status) (*models.Build, apierrors.ApiError) {
 
 	//First check if all status checks configured pass
