@@ -91,7 +91,6 @@ func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Stat
 		}
 
 		return build, nil
-
 	}
 
 	return nil, apierrors.NewApiError("They have not yet passed all the quality controls necessary to create a new version.", "error", 206, apierrors.CauseList{})
