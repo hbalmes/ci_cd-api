@@ -26,8 +26,33 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 	type expects struct {
 		error         error
 		errorDelete   error
-		config        models.Configuration
+		config        *models.Configuration
 		clientsResult clientsResult
+		getConfig     apierrors.ApiError
+		build         *models.Build
+		buildErr      apierrors.ApiError
+	}
+
+	statusList := []string{"workflow", "continuous-integration", "minimum-coverage", "pull-request-coverage"}
+
+	reqChecks := make([]models.RequireStatusCheck, 0)
+	for _, rq := range statusList {
+		reqChecks = append(reqChecks, models.RequireStatusCheck{
+			Check: rq,
+		})
+	}
+
+	codeCoverageThreadhold := 80.0
+
+	cicdConfigOK := models.Configuration{
+		ID:                               utils.Stringify("hbalmes/ci-cd_api"),
+		RepositoryName:                   utils.Stringify("ci-cd_api"),
+		RepositoryOwner:                  utils.Stringify("hbalmes"),
+		RepositoryStatusChecks:           reqChecks,
+		WorkflowType:                     utils.Stringify("gitflow"),
+		CodeCoveragePullRequestThreshold: &codeCoverageThreadhold,
+		CreatedAt:                        time.Time{},
+		UpdatedAt:                        time.Time{},
 	}
 
 	var pullRequestReviewPayloadOK webhook.PullRequestReviewWebhook
@@ -73,6 +98,17 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 	var webhookOK webhook.Webhook
 	webhookOK.Type = utils.Stringify("pull_request_review")
 
+	var buildOK models.Build
+	buildOK.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	buildOK.Status = utils.Stringify("pending")
+	buildOK.Username = utils.Stringify("hbalmes")
+	buildOK.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	buildOK.Major = 0
+	buildOK.Minor = 1
+	buildOK.Patch = 0
+	buildOK.Branch = utils.Stringify("feature/lalala")
+	buildOK.Type = utils.Stringify("test")
+
 	tests := []struct {
 		name    string
 		args    args
@@ -89,7 +125,9 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 				clientsResult: clientsResult{
 					sqlClient: nil,
 				},
-				error: gorm.ErrRecordNotFound,
+				error:  gorm.ErrRecordNotFound,
+				config: &cicdConfigOK,
+				build:  &buildOK,
 			},
 			wantErr: false,
 		},
@@ -103,7 +141,8 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 				clientsResult: clientsResult{
 					sqlClient: nil,
 				},
-				error: gorm.ErrInvalidTransaction,
+				error:  gorm.ErrInvalidTransaction,
+				config: &cicdConfigOK,
 			},
 			wantErr: true,
 		},
@@ -116,7 +155,8 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 				clientsResult: clientsResult{
 					sqlClient: apierrors.NewBadRequestApiError("error al guardar papu"),
 				},
-				error: gorm.ErrRecordNotFound,
+				error:  gorm.ErrRecordNotFound,
+				config: &cicdConfigOK,
 			},
 			wantErr: true,
 		},
@@ -126,7 +166,8 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 				payload: &pullRequestReviewPayloadOK,
 			},
 			expects: expects{
-				error: nil,
+				error:  nil,
+				config: &cicdConfigOK,
 			},
 			wantErr: false,
 		},
@@ -136,7 +177,8 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 				payload: &pullRequestReviewPayloadReviewStateNotSupported,
 			},
 			expects: expects{
-				error: nil,
+				error:  nil,
+				config: &cicdConfigOK,
 			},
 			wantErr: true,
 		},
@@ -146,7 +188,8 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 				payload: &pullRequestReviewPayloadReviewActionNotSupported,
 			},
 			expects: expects{
-				error: nil,
+				error:  nil,
+				config: &cicdConfigOK,
 			},
 			wantErr: true,
 		},
@@ -158,6 +201,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 			expects: expects{
 				error:       gorm.ErrRecordNotFound,
 				errorDelete: nil,
+				config:      &cicdConfigOK,
 			},
 			wantErr: true,
 		},
@@ -169,6 +213,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 			expects: expects{
 				error:       gorm.ErrUnaddressable,
 				errorDelete: nil,
+				config:      &cicdConfigOK,
 			},
 			wantErr: true,
 		},
@@ -180,6 +225,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 			expects: expects{
 				error:       nil,
 				errorDelete: nil,
+				config:      &cicdConfigOK,
 			},
 			wantErr: false,
 		},
@@ -191,6 +237,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 			expects: expects{
 				error:       nil,
 				errorDelete: gorm.ErrInvalidSQL,
+				config:      &cicdConfigOK,
 			},
 			wantErr: true,
 		},
@@ -202,6 +249,17 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 
 			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
 			githubClient := interfaces.NewMockGithubClient(ctrl)
+			configService := interfaces.NewMockConfigurationService(ctrl)
+			buildService := interfaces.NewMockBuildService(ctrl)
+
+			configService.EXPECT().
+				Get(gomock.Any()).
+				Return(tt.expects.config, tt.expects.getConfig).
+				AnyTimes()
+
+			buildService.EXPECT().
+				ProcessBuild(gomock.Any(), gomock.Any()).Return(tt.expects.build, tt.expects.buildErr).
+				AnyTimes()
 
 			sqlStorage.EXPECT().
 				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -222,8 +280,10 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 				AnyTimes()
 
 			s := &Webhook{
-				SQL:          sqlStorage,
-				GithubClient: githubClient,
+				SQL:           sqlStorage,
+				GithubClient:  githubClient,
+				ConfigService: configService,
+				BuildService:  buildService,
 			}
 			_, err := s.ProcessPullRequestReviewWebhook(tt.args.payload)
 
@@ -358,6 +418,18 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 	pullRequestWebhook.PullRequest.Base.Ref = utils.Stringify("develop")
 	pullRequestWebhook.PullRequest.Body = utils.Stringify("Pull request Body")
 
+	var prAlreadyExistsDeleteWebhook webhook.PullRequestWebhook
+	prAlreadyExistsDeleteWebhook.Number = 12345
+	prAlreadyExistsDeleteWebhook.Action = utils.Stringify("synchronize")
+	prAlreadyExistsDeleteWebhook.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	prAlreadyExistsDeleteWebhook.Sender.Login = utils.Stringify("hbalmes")
+	prAlreadyExistsDeleteWebhook.PullRequest.State = utils.Stringify("open")
+	prAlreadyExistsDeleteWebhook.PullRequest.Head.Sha = utils.Stringify("123456789qwertyuasdfghjzxcvbn")
+	prAlreadyExistsDeleteWebhook.PullRequest.Head.Ref = utils.Stringify("feature/test")
+	prAlreadyExistsDeleteWebhook.PullRequest.Base.Sha = utils.Stringify("lkjhgfdsoiuytrewqmnbvcxz12345")
+	prAlreadyExistsDeleteWebhook.PullRequest.Base.Ref = utils.Stringify("develop")
+	prAlreadyExistsDeleteWebhook.PullRequest.Body = utils.Stringify("Pull request Body")
+
 	var pullRequestWebhookClosed webhook.PullRequestWebhook
 	pullRequestWebhookClosed.Number = 12345
 	pullRequestWebhookClosed.Action = utils.Stringify("closed")
@@ -478,6 +550,22 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "pull request already exists (synchronize), update fails",
+			args: args{
+				payload: &pullRequestWebhook,
+			},
+			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
+				clientsResult: clientsResult{
+					sqlClient: nil,
+				},
+				sqlGetByError: nil,
+				sqlUpdateError: gorm.ErrCantStartTransaction,
+			},
+			wantErr: true,
+		},
+		{
 			name: "test - Pull Request Already exists (synchronize) - failure sending status",
 			args: args{
 				payload: &pullRequestWebhook,
@@ -490,6 +578,22 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 					githubClient: apierrors.NewNotFoundApiError("some error"),
 				},
 				sqlGetByError: nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "pull request already exists (deleted), default response",
+			args: args{
+				payload: &prAlreadyExistsDeleteWebhook,
+			},
+			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
+				clientsResult: clientsResult{
+					sqlClient: nil,
+				},
+				sqlGetByError: nil,
+				sqlUpdateError: gorm.ErrCantStartTransaction,
 			},
 			wantErr: true,
 		},
@@ -599,7 +703,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 					sqlClient:    nil,
 					githubClient: apierrors.NewNotFoundApiError("some error"),
 				},
-				sqlGetByError: nil,
+				sqlGetByError:  nil,
 				sqlUpdateError: gorm.ErrCantStartTransaction,
 			},
 			wantErr: true,
@@ -655,7 +759,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			_, err := s.ProcessPullRequestWebhook(tt.args.payload)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Webhook.ProcessPullRequestReviewWebhook() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Webhook.ProcessPullRequestWebhook() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
@@ -815,6 +919,8 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 		sqlInsertError error
 		getConfig      apierrors.ApiError
 		config         *models.Configuration
+		build          *models.Build
+		buildErr       apierrors.ApiError
 	}
 
 	var allowedStatusWebhookSuccess webhook.Status
@@ -977,6 +1083,11 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
 			githubClient := interfaces.NewMockGithubClient(ctrl)
 			configService := interfaces.NewMockConfigurationService(ctrl)
+			buildService := interfaces.NewMockBuildService(ctrl)
+
+			buildService.EXPECT().
+				ProcessBuild(gomock.Any(), gomock.Any()).Return(tt.expects.build, tt.expects.buildErr).
+				AnyTimes()
 
 			configService.EXPECT().
 				Get(gomock.Any()).
@@ -1000,6 +1111,7 @@ func TestWebhook_ProcessStatusWebhook(t *testing.T) {
 				SQL:           sqlStorage,
 				GithubClient:  githubClient,
 				ConfigService: configService,
+				BuildService:  buildService,
 			}
 			_, err := s.ProcessStatusWebhook(tt.args.payload)
 

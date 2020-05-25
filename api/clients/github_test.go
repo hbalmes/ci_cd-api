@@ -1259,3 +1259,176 @@ func Test_githubClient_UnprotectBranch(t *testing.T) {
 		})
 	}
 }
+
+func Test_githubClient_CreateIssueComment(t *testing.T) {
+
+	type restResponse struct {
+		mockError      error
+		mockStatusCode int
+		mockBytes      []byte
+	}
+
+	type args struct {
+		config           *models.Configuration
+		issueCommentBody string
+		pullRequest      *models.PullRequest
+	}
+
+	type expects struct {
+		error apierrors.ApiError
+	}
+
+	statusList := []string{"workflow", "continuous-integration", "minimum-coverage", "pull-request-coverage"}
+
+	reqChecks := make([]models.RequireStatusCheck, 0)
+	for _, rq := range statusList {
+		reqChecks = append(reqChecks, models.RequireStatusCheck{
+			Check: rq,
+		})
+	}
+
+	codeCoverageThreadhold := 80.0
+
+	var cicdConfigOK = models.Configuration{
+		ID:                               utils.Stringify("hbalmes/ci-cd_api"),
+		RepositoryName:                   utils.Stringify("ci-cd_api"),
+		RepositoryOwner:                  utils.Stringify("hbalmes"),
+		RepositoryStatusChecks:           reqChecks,
+		WorkflowType:                     utils.Stringify("gitflow"),
+		CodeCoveragePullRequestThreshold: &codeCoverageThreadhold,
+	}
+
+	var cicdConfigBadRequest = models.Configuration{
+		RepositoryName:         nil,
+		RepositoryOwner:        nil,
+		RepositoryStatusChecks: nil,
+	}
+
+	var pullr models.PullRequest
+	pullr.ID = 0
+	pullr.PullRequestNumber = 12345
+	pullr.State = utils.Stringify("open")
+	pullr.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	pullr.BaseRef = utils.Stringify("master")
+	pullr.HeadRef = utils.Stringify("release/pepe")
+	pullr.BaseSha = utils.Stringify("98765432ytrewqjhgfdsadsa")
+	pullr.HeadSha = utils.Stringify("123456789asdfghjkqwertyu")
+	pullr.CreatedAt = time.Now()
+	pullr.UpdatedAt = time.Now()
+	pullr.Body = utils.Stringify("pull request body test")
+	pullr.Title = utils.Stringify("titulo")
+	pullr.CreatedBy = utils.Stringify("hbalmes")
+
+	tests := []struct {
+		name         string
+		args         args
+		restResponse restResponse
+		wantErr      bool
+		expects      expects
+	}{
+		{
+			name: "bad request branch name nil (invalid github body params)",
+			args: args{
+				config:      &cicdConfigBadRequest,
+				pullRequest: &pullr,
+				issueCommentBody: "lalalala",
+			},
+			expects: expects{
+				error: apierrors.NewBadRequestApiError("invalid body params"),
+			},
+			restResponse: restResponse{},
+			wantErr:      true,
+		},
+		{
+			name: "rest client error creating issue comment",
+			restResponse: restResponse{
+				mockError: errors.New("some error"),
+			},
+			args: args{
+				config: &cicdConfigOK,
+				pullRequest: &pullr,
+				issueCommentBody: "lalalala",
+			},
+			expects: expects{
+				error: apierrors.NewInternalServerApiError("restClient Error creating new issue comment", errors.New("some error")),
+			},
+			wantErr: true,
+		},
+		{
+			name: "rest client error , url not found",
+			restResponse: restResponse{
+				mockStatusCode: 404,
+			},
+			args: args{
+				config: &cicdConfigOK,
+				pullRequest: &pullr,
+				issueCommentBody: "lalalala",
+			},
+			expects: expects{
+				error: apierrors.NewInternalServerApiError("error creating new issue comment", nil),
+			},
+			wantErr: true,
+		},
+		{
+			name: "issue comment created successfully",
+			restResponse: restResponse{
+				mockStatusCode: 200,
+				mockBytes: utils.GetBytes(map[string]interface{}{
+					"name":      "feature/pepe",
+					"commit":    map[string]interface{}{"sha": "1245678qwertyuasdfghzxcvb"},
+					"protected": false,
+				}),
+			},
+			args: args{
+				config: &cicdConfigOK,
+				pullRequest: &pullr,
+				issueCommentBody: "lalalala",
+			},
+			expects: expects{
+				error: nil,
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			client := NewMockClient(ctrl)
+			response := NewMockResponse(ctrl)
+
+			response.
+				EXPECT().
+				Err().
+				Return(tt.restResponse.mockError).
+				AnyTimes()
+
+			response.
+				EXPECT().
+				StatusCode().
+				Return(tt.restResponse.mockStatusCode).
+				AnyTimes()
+
+			response.
+				EXPECT().
+				Bytes().
+				Return(tt.restResponse.mockBytes).
+				AnyTimes()
+
+			client.EXPECT().
+				Post(gomock.Any(), gomock.Any()).
+				Return(response).
+				AnyTimes()
+
+			c := &githubClient{
+				Client: client,
+			}
+
+			if got := c.CreateIssueComment(tt.args.config, tt.args.pullRequest, tt.args.issueCommentBody); !reflect.DeepEqual(got, tt.expects.error) {
+				t.Errorf("CreateIssueComment() = %v, want %v", got, tt.expects.error)
+			}
+		})
+	}
+}

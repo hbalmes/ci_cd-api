@@ -27,7 +27,7 @@ func main() {
 		fmt.Println("There was an error stablishing the MySQL connection")
 	}
 
-	sql.Client.AutoMigrate(&models.Configuration{}, &models.RequireStatusCheck{}, &webhook.Webhook{}, &webhook.PullRequest{})
+	sql.Client.AutoMigrate(&models.Configuration{}, &models.RequireStatusCheck{}, &webhook.Webhook{}, &models.PullRequest{}, &models.Build{}, &models.LatestBuild{})
 
 	routers.SQLConnection = sql
 

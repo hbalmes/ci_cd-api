@@ -140,5 +140,11 @@ func (s *Configuration) Delete(id string) error {
 		return sqlErr
 	}
 
+	//TODO:Descomentar esto y probar.
+	//Delete from configurations DB
+	/*if sqlErr := s.SQL.DeleteFromRequireStatusChecksByConfigurationID(cf.ID); sqlErr != nil {
+		return sqlErr
+	}*/
+
 	return nil
 }

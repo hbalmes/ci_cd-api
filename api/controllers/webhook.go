@@ -33,6 +33,7 @@ func NewWebhookController(sql storage.SQLStorage) *Webhook {
 //	500InternalServerError in case of an internal error procesing the creation
 func (c *Webhook) CreateWebhook(ginContext *gin.Context) {
 
+	var errorStatusCode int
 	//Check if 'X-Github-Event' header is present
 	if webhookEvent, deliveryID := getGetGithubHeaders(ginContext); webhookEvent != "" && deliveryID != "" {
 
@@ -50,8 +51,14 @@ func (c *Webhook) CreateWebhook(ginContext *gin.Context) {
 			whook, err := c.Service.ProcessStatusWebhook(&statusWH)
 
 			if err != nil {
+
+				if err.Message() == "Resource Already exists" {
+					errorStatusCode = http.StatusAccepted
+				} else {
+					errorStatusCode = err.Status()
+				}
 				ginContext.JSON(
-					http.StatusInternalServerError,
+					errorStatusCode,
 					err,
 				)
 				return

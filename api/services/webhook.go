@@ -2,6 +2,7 @@ package services
 
 import (
 	"github.com/hbalmes/ci_cd-api/api/clients"
+	"github.com/hbalmes/ci_cd-api/api/models"
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
 	"github.com/hbalmes/ci_cd-api/api/services/storage"
 	"github.com/hbalmes/ci_cd-api/api/utils"
@@ -30,6 +31,7 @@ type Webhook struct {
 	SQL           storage.SQLStorage
 	GithubClient  clients.GithubClient
 	ConfigService ConfigurationService
+	BuildService  BuildService
 }
 
 //NewConfigurationSeNewWebhookServicervice initializes a WebhookService
@@ -38,6 +40,7 @@ func NewWebhookService(sql storage.SQLStorage) *Webhook {
 		SQL:           sql,
 		GithubClient:  clients.NewGithubClient(),
 		ConfigService: NewConfigurationService(sql),
+		BuildService:  NewBuildService(sql),
 	}
 }
 
@@ -95,6 +98,13 @@ func (s *Webhook) ProcessStatusWebhook(payload *webhook.Status) (*webhook.Webhoo
 			return nil, apierrors.NewInternalServerApiError("error saving new status webhook", err)
 		}
 
+		//TODO: Logear el build generado o insertarlo en el apartado build
+		build, _ := s.BuildService.ProcessBuild(conf, payload)
+
+		if build != nil {
+			//TODO: Logear
+		}
+
 	} else { //If webhook already exists then return it
 		return nil, apierrors.NewConflictApiError("Resource Already exists")
 	}
@@ -105,7 +115,7 @@ func (s *Webhook) ProcessStatusWebhook(payload *webhook.Status) (*webhook.Webhoo
 //ProcessPullRequestWebhook process
 func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook) (*webhook.Webhook, apierrors.ApiError) {
 
-	var prWH webhook.PullRequest
+	var prWH models.PullRequest
 	var wh webhook.Webhook
 	var cf Configuration
 
@@ -183,6 +193,14 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 		//TODO: mejorar este codigo.
 		switch *payload.Action {
 		case "synchronize":
+
+			//Update the Pull request
+			updateErr := s.UpdatePullRequestWebhook(*payload)
+
+			if updateErr != nil {
+				return nil, apierrors.NewInternalServerApiError(updateErr.Error(), updateErr)
+			}
+
 			statusWH := cf.CheckWorkflow(config, payload)
 
 			notifyStatusErr := s.GithubClient.CreateStatus(config, statusWH)
@@ -190,14 +208,15 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 			if notifyStatusErr != nil {
 				return nil, apierrors.NewInternalServerApiError(notifyStatusErr.Message(), notifyStatusErr)
 			}
-		case "closed" , "reopened":
+		case "closed", "reopened":
 
-			prWH.State = payload.Action
+			//Update the Pull request
+			updateErr := s.UpdatePullRequestWebhook(*payload)
 
-			//Update pull request state in db
-			if err := s.SQL.Update(&prWH); err != nil {
-				return nil, apierrors.NewInternalServerApiError("error updating pull request state", err)
+			if updateErr != nil {
+				return nil, apierrors.NewInternalServerApiError(updateErr.Error(), updateErr)
 			}
+
 		default:
 			return nil, apierrors.NewConflictApiError("Resource Already exists")
 		}
@@ -210,6 +229,17 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestReviewWebhook) (*webhook.Webhook, apierrors.ApiError) {
 
 	var wh webhook.Webhook
+
+	//Validates that the repository has a ci cd configuration
+	config, err := s.ConfigService.Get(*payload.Repository.FullName)
+
+	if err != nil {
+		return nil, apierrors.NewInternalServerApiError("error checking configuration existance", err)
+	}
+
+	if config == nil {
+		return nil, apierrors.NewNotFoundApiError("configuration not found for the repository")
+	}
 
 	webhookType := utils.Stringify("pull_request_review")
 
@@ -247,15 +277,15 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 					return nil, apierrors.NewInternalServerApiError("error saving new pull request review webhook", err)
 				}
 
-				return &wh, nil
+				//return &wh, nil
 
 			} else { //If webhook already exists then return it
 				//Returns the saved webhook
 				return &wh, nil
 			}
+		} else {
+			return nil, apierrors.NewBadRequestApiError("pull request review state not supported yet")
 		}
-
-		return nil, apierrors.NewBadRequestApiError("pull request review state not supported yet")
 
 	case pullRequestReviewDismissedAction:
 		//Search the status webhook into database
@@ -277,16 +307,24 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 		return nil, apierrors.NewBadRequestApiError("action not supported yet")
 	}
 
+	//We create the payload necessary to process the build
+	buildPayload := s.BuildStatusWebhookPayload(*payload)
+	build, _ := s.BuildService.ProcessBuild(config, buildPayload)
+
+	if build != nil {
+		//TODO: Logear
+	}
+
 	return &wh, nil
 }
 
 func (s *Webhook) SavePullRequestWebhook(pullRequestWH webhook.PullRequestWebhook) apierrors.ApiError {
 
-	var prWH webhook.PullRequest
+	var prWH models.PullRequest
 
 	//Fill every field in the pull request
-	prWH.ID = &pullRequestWH.PullRequest.ID
-	prWH.PullRequestNumber = &pullRequestWH.PullRequest.Number
+	prWH.ID = pullRequestWH.PullRequest.ID
+	prWH.PullRequestNumber = pullRequestWH.PullRequest.Number
 	prWH.Body = pullRequestWH.PullRequest.Body
 	prWH.State = pullRequestWH.PullRequest.State
 	prWH.RepositoryName = pullRequestWH.Repository.FullName
@@ -305,4 +343,43 @@ func (s *Webhook) SavePullRequestWebhook(pullRequestWH webhook.PullRequestWebhoo
 	}
 
 	return nil
+}
+
+func (s *Webhook) UpdatePullRequestWebhook(pullRequestWH webhook.PullRequestWebhook) apierrors.ApiError {
+
+	var prWH models.PullRequest
+
+	//Fill every field in the pull request
+	prWH.ID = pullRequestWH.PullRequest.ID
+	prWH.PullRequestNumber = pullRequestWH.PullRequest.Number
+	prWH.Body = pullRequestWH.PullRequest.Body
+	prWH.State = pullRequestWH.Action
+	prWH.RepositoryName = pullRequestWH.Repository.FullName
+	prWH.Title = pullRequestWH.PullRequest.Title
+	prWH.BaseRef = pullRequestWH.PullRequest.Base.Ref
+	prWH.BaseSha = pullRequestWH.PullRequest.Base.Sha
+	prWH.HeadRef = pullRequestWH.PullRequest.Head.Ref
+	prWH.HeadSha = pullRequestWH.PullRequest.Head.Sha
+	prWH.CreatedAt = pullRequestWH.PullRequest.CreatedAt
+	prWH.UpdatedAt = pullRequestWH.PullRequest.UpdatedAt
+	prWH.CreatedBy = pullRequestWH.PullRequest.User.Login
+
+	//Save it into database
+	if err := s.SQL.Update(&prWH); err != nil {
+		return apierrors.NewInternalServerApiError("error updating new status webhook", err)
+	}
+
+	return nil
+}
+
+func (s *Webhook) BuildStatusWebhookPayload(pullRequestReviewWH webhook.PullRequestReviewWebhook) *webhook.Status {
+	var statusWebhook webhook.Status
+
+	//Fill every field in the status webhook with pullRequest Webhook
+	statusWebhook.Sha = pullRequestReviewWH.PullRequest.Head.Sha
+	statusWebhook.State = utils.Stringify("success")
+	statusWebhook.Repository.FullName = pullRequestReviewWH.Repository.FullName
+	statusWebhook.Sender.Login = pullRequestReviewWH.Sender.Login
+
+	return &statusWebhook
 }
