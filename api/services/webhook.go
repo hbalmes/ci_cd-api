@@ -300,7 +300,6 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 
 	//We create the payload necessary to process the build
 	buildPayload := s.BuildStatusWebhookPayload(*payload)
-	//TODO: Logear el build generado o insertarlo en el apartado build
 	build, _ := s.BuildService.ProcessBuild(config, buildPayload)
 
 	if build != nil {

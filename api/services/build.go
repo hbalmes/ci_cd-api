@@ -40,6 +40,7 @@ type Build struct {
 func NewBuildService(sql storage.SQLStorage) *Build {
 	return &Build{
 		SQL: sql,
+		GithubClient: clients.NewGithubClient(),
 	}
 }
 
@@ -79,7 +80,7 @@ func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Stat
 		}
 
 		//Send the issue comment to Pull request
-		issueCommentBody := s.getIssueCommentBody(build)
+		issueCommentBody := s.GetIssueCommentBody(build)
 		sendIssuecommentErr := s.GithubClient.CreateIssueComment(config, pRequest, issueCommentBody)
 
 		if sendIssuecommentErr != nil {
@@ -293,7 +294,7 @@ func (s *Build) CreateAndSaveLatestBuild(build *models.Build, lastBuild *semver.
 	return nil
 }
 
-func (s *Build) getIssueCommentBody(build *models.Build) string {
+func (s *Build) GetIssueCommentBody(build *models.Build) string {
 	var body string
 	var emoji string
 
