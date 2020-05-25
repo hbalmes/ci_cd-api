@@ -418,6 +418,18 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 	pullRequestWebhook.PullRequest.Base.Ref = utils.Stringify("develop")
 	pullRequestWebhook.PullRequest.Body = utils.Stringify("Pull request Body")
 
+	var prAlreadyExistsDeleteWebhook webhook.PullRequestWebhook
+	prAlreadyExistsDeleteWebhook.Number = 12345
+	prAlreadyExistsDeleteWebhook.Action = utils.Stringify("synchronize")
+	prAlreadyExistsDeleteWebhook.Repository.FullName = utils.Stringify("hbalmes/ci-cd_api")
+	prAlreadyExistsDeleteWebhook.Sender.Login = utils.Stringify("hbalmes")
+	prAlreadyExistsDeleteWebhook.PullRequest.State = utils.Stringify("open")
+	prAlreadyExistsDeleteWebhook.PullRequest.Head.Sha = utils.Stringify("123456789qwertyuasdfghjzxcvbn")
+	prAlreadyExistsDeleteWebhook.PullRequest.Head.Ref = utils.Stringify("feature/test")
+	prAlreadyExistsDeleteWebhook.PullRequest.Base.Sha = utils.Stringify("lkjhgfdsoiuytrewqmnbvcxz12345")
+	prAlreadyExistsDeleteWebhook.PullRequest.Base.Ref = utils.Stringify("develop")
+	prAlreadyExistsDeleteWebhook.PullRequest.Body = utils.Stringify("Pull request Body")
+
 	var pullRequestWebhookClosed webhook.PullRequestWebhook
 	pullRequestWebhookClosed.Number = 12345
 	pullRequestWebhookClosed.Action = utils.Stringify("closed")
@@ -538,6 +550,22 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "pull request already exists (synchronize), update fails",
+			args: args{
+				payload: &pullRequestWebhook,
+			},
+			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
+				clientsResult: clientsResult{
+					sqlClient: nil,
+				},
+				sqlGetByError: nil,
+				sqlUpdateError: gorm.ErrCantStartTransaction,
+			},
+			wantErr: true,
+		},
+		{
 			name: "test - Pull Request Already exists (synchronize) - failure sending status",
 			args: args{
 				payload: &pullRequestWebhook,
@@ -550,6 +578,22 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 					githubClient: apierrors.NewNotFoundApiError("some error"),
 				},
 				sqlGetByError: nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "pull request already exists (deleted), default response",
+			args: args{
+				payload: &prAlreadyExistsDeleteWebhook,
+			},
+			expects: expects{
+				getConfig: nil,
+				config:    &cicdConfigOK,
+				clientsResult: clientsResult{
+					sqlClient: nil,
+				},
+				sqlGetByError: nil,
+				sqlUpdateError: gorm.ErrCantStartTransaction,
 			},
 			wantErr: true,
 		},
@@ -715,7 +759,7 @@ func TestWebhook_ProcessPullRequestWebhook(t *testing.T) {
 			_, err := s.ProcessPullRequestWebhook(tt.args.payload)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Webhook.ProcessPullRequestReviewWebhook() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Webhook.ProcessPullRequestWebhook() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 

@@ -193,6 +193,14 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 		//TODO: mejorar este codigo.
 		switch *payload.Action {
 		case "synchronize":
+
+			//Update the Pull request
+			updateErr := s.UpdatePullRequestWebhook(*payload)
+
+			if updateErr != nil {
+				return nil, apierrors.NewInternalServerApiError(updateErr.Error(), updateErr)
+			}
+
 			statusWH := cf.CheckWorkflow(config, payload)
 
 			notifyStatusErr := s.GithubClient.CreateStatus(config, statusWH)
@@ -202,12 +210,13 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 			}
 		case "closed", "reopened":
 
-			prWH.State = payload.Action
+			//Update the Pull request
+			updateErr := s.UpdatePullRequestWebhook(*payload)
 
-			//Update pull request state in db
-			if err := s.SQL.Update(&prWH); err != nil {
-				return nil, apierrors.NewInternalServerApiError("error updating pull request state", err)
+			if updateErr != nil {
+				return nil, apierrors.NewInternalServerApiError(updateErr.Error(), updateErr)
 			}
+
 		default:
 			return nil, apierrors.NewConflictApiError("Resource Already exists")
 		}
@@ -331,6 +340,33 @@ func (s *Webhook) SavePullRequestWebhook(pullRequestWH webhook.PullRequestWebhoo
 	//Save it into database
 	if err := s.SQL.Insert(&prWH); err != nil {
 		return apierrors.NewInternalServerApiError("error saving new status webhook", err)
+	}
+
+	return nil
+}
+
+func (s *Webhook) UpdatePullRequestWebhook(pullRequestWH webhook.PullRequestWebhook) apierrors.ApiError {
+
+	var prWH models.PullRequest
+
+	//Fill every field in the pull request
+	prWH.ID = pullRequestWH.PullRequest.ID
+	prWH.PullRequestNumber = pullRequestWH.PullRequest.Number
+	prWH.Body = pullRequestWH.PullRequest.Body
+	prWH.State = pullRequestWH.Action
+	prWH.RepositoryName = pullRequestWH.Repository.FullName
+	prWH.Title = pullRequestWH.PullRequest.Title
+	prWH.BaseRef = pullRequestWH.PullRequest.Base.Ref
+	prWH.BaseSha = pullRequestWH.PullRequest.Base.Sha
+	prWH.HeadRef = pullRequestWH.PullRequest.Head.Ref
+	prWH.HeadSha = pullRequestWH.PullRequest.Head.Sha
+	prWH.CreatedAt = pullRequestWH.PullRequest.CreatedAt
+	prWH.UpdatedAt = pullRequestWH.PullRequest.UpdatedAt
+	prWH.CreatedBy = pullRequestWH.PullRequest.User.Login
+
+	//Save it into database
+	if err := s.SQL.Update(&prWH); err != nil {
+		return apierrors.NewInternalServerApiError("error updating new status webhook", err)
 	}
 
 	return nil
