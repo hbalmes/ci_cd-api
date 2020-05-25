@@ -26,6 +26,7 @@ type GithubClient interface {
 	SetDefaultBranch(config *models.Configuration, workflowConfig *models.WorkflowConfig) apierrors.ApiError
 	CreateStatus(config *models.Configuration, statusWH *webhook.Status) apierrors.ApiError
 	CreateBranch(config *models.Configuration, branchConfig *models.Branch, sha string) apierrors.ApiError
+	CreateIssueComment(config *models.Configuration, pullRequest *models.PullRequest, issueCommentBody string) apierrors.ApiError
 }
 
 type githubClient struct {
@@ -251,6 +252,32 @@ func (c *githubClient) UnprotectBranch(config *models.Configuration, branchConfi
 			return nil
 		}
 		return apierrors.NewInternalServerApiError(fmt.Sprintf("error deleting branch protection- status: %d", response.StatusCode()), response.Err())
+	}
+
+	return nil
+}
+
+
+//CreateIssueComment create issue comment to a pull request.
+//This perform a POST request
+func (c *githubClient) CreateIssueComment(config *models.Configuration, pullRequest *models.PullRequest, issueCommentBody string) apierrors.ApiError {
+
+	if config.RepositoryOwner == nil || config.RepositoryName == nil || pullRequest.PullRequestNumber == 0 {
+		return apierrors.NewBadRequestApiError("invalid body params")
+	}
+
+	body := map[string]interface{}{
+		"body": issueCommentBody,
+	}
+
+	response := c.Client.Post(fmt.Sprintf("/repos/%s/%s/issues/%d/comments", *config.RepositoryOwner, *config.RepositoryName, pullRequest.PullRequestNumber), body)
+
+	if response.Err() != nil {
+		return apierrors.NewInternalServerApiError("restClient Error creating new issue comment", response.Err())
+	}
+
+	if response.StatusCode() != http.StatusOK && response.StatusCode() != http.StatusCreated {
+		return apierrors.NewInternalServerApiError("error creating new issue comment", response.Err())
 	}
 
 	return nil

@@ -133,3 +133,17 @@ func (mr *MockGithubClientMockRecorder) CreateBranch(config, branchConfig, sha i
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBranch", reflect.TypeOf((*MockGithubClient)(nil).CreateBranch), config, branchConfig, sha)
 }
+
+// CreateIssueComment mocks base method
+func (m *MockGithubClient) CreateIssueComment(config *models.Configuration, pullRequest *models.PullRequest, issueCommentBody string) apierrors.ApiError {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateIssueComment", config, pullRequest, issueCommentBody)
+	ret0, _ := ret[0].(apierrors.ApiError)
+	return ret0
+}
+
+// CreateIssueComment indicates an expected call of CreateIssueComment
+func (mr *MockGithubClientMockRecorder) CreateIssueComment(config, pullRequest, issueCommentBody interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateIssueComment", reflect.TypeOf((*MockGithubClient)(nil).CreateIssueComment), config, pullRequest, issueCommentBody)
+}

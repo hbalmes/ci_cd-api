@@ -1,7 +1,9 @@
 package services
 
 import (
+	"fmt"
 	"github.com/coreos/go-semver/semver"
+	"github.com/hbalmes/ci_cd-api/api/clients"
 	"github.com/hbalmes/ci_cd-api/api/models"
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
 	"github.com/hbalmes/ci_cd-api/api/services/storage"
@@ -30,7 +32,8 @@ type BuildService interface {
 //A Webhook service instance and
 //A ConfigService instance
 type Build struct {
-	SQL storage.SQLStorage
+	SQL          storage.SQLStorage
+	GithubClient clients.GithubClient
 }
 
 //NewConfigurationSeNewWebhookServicervice initializes a WebhookService
@@ -53,17 +56,17 @@ func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Stat
 		lastBuild := s.GetLatestBuild(config)
 
 		//Busca a que PR pertenece el sha para luego saber que campo debo aumentar
-		pullRequest, err := s.GetPullRequestBySha(*payload.Sha)
+		pRequest, err := s.GetPullRequestBySha(*payload.Sha)
 
 		if err != nil {
 			return nil, err
 		}
 
 		//traemos el incrementador y el tipo de build
-		incrementer, buildType := s.GetIncrementerAndType(pullRequest)
+		incrementer, buildType := s.GetIncrementerAndType(pRequest)
 		newSemVer := s.IncrementSemVer(*lastBuild, incrementer)
 
-		build, err := s.CreateAndSaveBuild(pullRequest, newSemVer, buildType)
+		build, err := s.CreateAndSaveBuild(pRequest, newSemVer, buildType)
 
 		if err != nil {
 			return nil, err
@@ -75,7 +78,16 @@ func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Stat
 			return nil, err
 		}
 
+		//Send the issue comment to Pull request
+		issueCommentBody := s.getIssueCommentBody(build)
+		sendIssuecommentErr := s.GithubClient.CreateIssueComment(config, pRequest, issueCommentBody)
+
+		if sendIssuecommentErr != nil {
+			//TODO: Logear
+		}
+
 		return build, nil
+
 	}
 
 	return nil, apierrors.NewApiError("They have not yet passed all the quality controls necessary to create a new version.", "error", 206, apierrors.CauseList{})
@@ -168,21 +180,21 @@ func (s *Build) CreateInitialBuild(config *models.Configuration) *models.Build {
 	return &build
 }
 
-func (s *Build) GetPullRequestBySha(sha string) (pullRequestWebhook *webhook.PullRequest, apiError apierrors.ApiError) {
+func (s *Build) GetPullRequestBySha(sha string) (*models.PullRequest, apierrors.ApiError) {
 
-	var pullRequest webhook.PullRequest
+	var pr models.PullRequest
 	//Get from db all status from repository and sha
-	if err := s.SQL.GetBy(&pullRequest, "head_sha = ?", sha); err != nil {
+	if err := s.SQL.GetBy(&pr, "head_sha = ?", sha); err != nil {
 		if err != gorm.ErrRecordNotFound {
 			return nil, apierrors.NewInternalServerApiError("error getting pull request", err)
 		}
 		return nil, apierrors.NewNotFoundApiError("pull request not found for the sha")
 	}
 
-	return &pullRequest, nil
+	return &pr, nil
 }
 
-func (s *Build) GetIncrementerAndType(pr *webhook.PullRequest) (incrementer string, buildType string) {
+func (s *Build) GetIncrementerAndType(pr *models.PullRequest) (incrementer string, buildType string) {
 
 	switch *pr.BaseRef {
 	case "master":
@@ -192,7 +204,7 @@ func (s *Build) GetIncrementerAndType(pr *webhook.PullRequest) (incrementer stri
 			return "minor", buildType
 		}
 
-		if strings.HasPrefix( *pr.HeadRef, "hotfix/") {
+		if strings.HasPrefix(*pr.HeadRef, "hotfix/") {
 			return "patch", buildType
 		}
 	case "develop":
@@ -236,7 +248,7 @@ func (s *Build) IncrementSemVer(version semver.Version, incrementer string) semv
 	return newVersion
 }
 
-func (s *Build) CreateAndSaveBuild(pullRequest *webhook.PullRequest, newSemVer semver.Version, buildType string) (*models.Build, apierrors.ApiError) {
+func (s *Build) CreateAndSaveBuild(pullRequest *models.PullRequest, newSemVer semver.Version, buildType string) (*models.Build, apierrors.ApiError) {
 	var build models.Build
 
 	build.Major = uint8(newSemVer.Major)
@@ -259,7 +271,7 @@ func (s *Build) CreateAndSaveBuild(pullRequest *webhook.PullRequest, newSemVer s
 	return &build, nil
 }
 
-func (s *Build) CreateAndSaveLatestBuild(build *models.Build, lastBuild *semver.Version) apierrors.ApiError{
+func (s *Build) CreateAndSaveLatestBuild(build *models.Build, lastBuild *semver.Version) apierrors.ApiError {
 
 	var latestBuild models.LatestBuild
 	latestBuildID, _ := strconv.Atoi(lastBuild.Metadata)
@@ -279,4 +291,28 @@ func (s *Build) CreateAndSaveLatestBuild(build *models.Build, lastBuild *semver.
 	}
 
 	return nil
+}
+
+func (s *Build) getIssueCommentBody(build *models.Build) string {
+	var body string
+	var emoji string
+
+	switch *build.Status {
+	case "pending":
+		emoji = ":clock8:"
+		break
+	case "finished":
+		emoji = ":white_check_mark:"
+		break
+	case "error":
+		emoji = ":red_circle:"
+		break
+	}
+
+	buildID := strconv.Itoa(int(build.ID))
+
+	body = "# Build report \n" + "\n" +
+		"> **Status:** _" + fmt.Sprintf("[%s](http://url/%s/build)_  %s", *build.Status, *build.RepositoryName, emoji) + "\n" +
+		"**Version:**" + fmt.Sprintf("[%d.%d.%d](http://url/%s/builds/%s)", build.Major, build.Minor, build.Patch, *build.RepositoryName, buildID)
+	return body
 }

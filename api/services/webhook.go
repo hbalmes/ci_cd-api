@@ -2,6 +2,7 @@ package services
 
 import (
 	"github.com/hbalmes/ci_cd-api/api/clients"
+	"github.com/hbalmes/ci_cd-api/api/models"
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
 	"github.com/hbalmes/ci_cd-api/api/services/storage"
 	"github.com/hbalmes/ci_cd-api/api/utils"
@@ -114,7 +115,7 @@ func (s *Webhook) ProcessStatusWebhook(payload *webhook.Status) (*webhook.Webhoo
 //ProcessPullRequestWebhook process
 func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook) (*webhook.Webhook, apierrors.ApiError) {
 
-	var prWH webhook.PullRequest
+	var prWH models.PullRequest
 	var wh webhook.Webhook
 	var cf Configuration
 
@@ -311,11 +312,11 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 
 func (s *Webhook) SavePullRequestWebhook(pullRequestWH webhook.PullRequestWebhook) apierrors.ApiError {
 
-	var prWH webhook.PullRequest
+	var prWH models.PullRequest
 
 	//Fill every field in the pull request
-	prWH.ID = &pullRequestWH.PullRequest.ID
-	prWH.PullRequestNumber = &pullRequestWH.PullRequest.Number
+	prWH.ID = pullRequestWH.PullRequest.ID
+	prWH.PullRequestNumber = pullRequestWH.PullRequest.Number
 	prWH.Body = pullRequestWH.PullRequest.Body
 	prWH.State = pullRequestWH.PullRequest.State
 	prWH.RepositoryName = pullRequestWH.Repository.FullName

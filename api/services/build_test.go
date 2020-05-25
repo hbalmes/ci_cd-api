@@ -28,16 +28,16 @@ func TestBuild_ProcessBuild(t *testing.T) {
 	}
 
 	type expects struct {
-		sqlGetByError      error
-		sqlGetLatestErr    error
-		sqlGetBuildErr     error
-		sqlGetPRErr        error
-		sqlDeleteError     error
-		config             *models.Configuration
-		getConfig          apierrors.ApiError
-		build              *models.Build
-		buildErr           apierrors.ApiError
-		pullRequestWebhook *webhook.PullRequest
+		sqlGetByError   error
+		sqlGetLatestErr error
+		sqlGetBuildErr  error
+		sqlGetPRErr     error
+		sqlDeleteError  error
+		config          *models.Configuration
+		getConfig       apierrors.ApiError
+		build           *models.Build
+		buildErr        apierrors.ApiError
+		pr              *models.PullRequest
 	}
 
 	var webhookOK webhook.Webhook
@@ -58,11 +58,20 @@ func TestBuild_ProcessBuild(t *testing.T) {
 	buildOK.Branch = utils.Stringify("feature/lalala")
 	buildOK.Type = utils.Stringify("test")
 
-	var pullRequest webhook.PullRequest
-	pullRequest.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
-	pullRequest.State = utils.Stringify("open")
-	pullRequest.HeadSha = utils.Stringify("123456789asdfghjkqwertyu")
-	pullRequest.CreatedBy = utils.Stringify("hbalmes")
+	var pullr models.PullRequest
+	pullr.ID = 0
+	pullr.PullRequestNumber = 12345
+	pullr.State = utils.Stringify("open")
+	pullr.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	pullr.BaseRef = utils.Stringify("master")
+	pullr.HeadRef = utils.Stringify("release/pepe")
+	pullr.BaseSha = utils.Stringify("98765432ytrewqjhgfdsadsa")
+	pullr.HeadSha = utils.Stringify("23456789qwertyuiasdfghjzxcvbn")
+	pullr.CreatedAt = time.Now()
+	pullr.UpdatedAt = time.Now()
+	pullr.Body = utils.Stringify("pull request body test")
+	pullr.Title = utils.Stringify("titulo")
+	pullr.CreatedBy = utils.Stringify("hbalmes")
 
 	statusList := []string{"workflow", "continuous-integration", "minimum-coverage", "pull-request-coverage"}
 
@@ -166,39 +175,39 @@ func TestBuild_ProcessBuild(t *testing.T) {
 
 			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
 
-			gomock.InOrder(
-				sqlStorage.EXPECT().
-					GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(e interface{}, qry ...interface{}) *webhook.Webhook {
-						return &webhookOK
-					}).
-					Return(tt.expects.sqlGetByError).
-					Times(tt.args.getSCTimes),
+			checkBuildability := sqlStorage.EXPECT().
+				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(e interface{}, qry ...interface{}) *webhook.Webhook {
+					return &webhookOK
+				}).
+				Return(tt.expects.sqlGetByError).MaxTimes(tt.args.getSCTimes)
 
-				sqlStorage.EXPECT().
-					GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(e interface{}, qry ...interface{}) *models.LatestBuild {
-						return &latestBuild
-					}).
-					Return(tt.expects.sqlGetLatestErr).
-					Times(tt.args.getLastBuildTimes),
+			getLatestBuilds := sqlStorage.EXPECT().
+				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(e interface{}, qry ...interface{}) *models.LatestBuild {
+					return &latestBuild
+				}).
+				Return(tt.expects.sqlGetLatestErr).
+				After(checkBuildability).
+				MaxTimes(tt.args.getLastBuildTimes)
 
-				sqlStorage.EXPECT().
-					GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(e interface{}, qry ...interface{}) *models.Build {
-						return &buildOK
-					}).
-					Return(tt.expects.sqlGetBuildErr).
-					Times(tt.args.getBuildsTimes),
+			getBuilds := sqlStorage.EXPECT().
+				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(e interface{}, qry ...interface{}) *models.Build {
+					return &buildOK
+				}).
+				Return(tt.expects.sqlGetBuildErr).
+				After(getLatestBuilds).
+				MaxTimes(tt.args.getBuildsTimes)
 
-				sqlStorage.EXPECT().
-					GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(e interface{}, qry ...interface{}) *webhook.PullRequest {
-						return tt.expects.pullRequestWebhook
-					}).
-					Return(tt.expects.sqlGetPRErr).
-					Times(tt.args.getPRTimes),
-			)
+			sqlStorage.EXPECT().
+				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(e interface{}, qry ...interface{}) *models.PullRequest {
+					return &pullr
+				}).
+				Return(tt.expects.sqlGetPRErr).
+				After(getBuilds).
+				MaxTimes(tt.args.getPRTimes)
 
 			s := &Build{
 				SQL: sqlStorage,
@@ -536,7 +545,7 @@ func TestBuild_GetLatestBuild(t *testing.T) {
 func TestBuild_GetIncrementerAndType(t *testing.T) {
 
 	type args struct {
-		pr *webhook.PullRequest
+		pr *models.PullRequest
 	}
 
 	type expects struct {
@@ -544,31 +553,31 @@ func TestBuild_GetIncrementerAndType(t *testing.T) {
 		buildType   string
 	}
 
-	var prBaseMasterHeadRelease webhook.PullRequest
+	var prBaseMasterHeadRelease models.PullRequest
 	prBaseMasterHeadRelease.BaseRef = utils.Stringify("master")
 	prBaseMasterHeadRelease.HeadRef = utils.Stringify("release/lala")
 
-	var prBaseMasterHeadHotfix webhook.PullRequest
+	var prBaseMasterHeadHotfix models.PullRequest
 	prBaseMasterHeadHotfix.BaseRef = utils.Stringify("master")
 	prBaseMasterHeadHotfix.HeadRef = utils.Stringify("hotfix/lala")
 
-	var prBaseDevelopHeadFeature webhook.PullRequest
+	var prBaseDevelopHeadFeature models.PullRequest
 	prBaseDevelopHeadFeature.BaseRef = utils.Stringify("develop")
 	prBaseDevelopHeadFeature.HeadRef = utils.Stringify("feature/lala")
 
-	var prBaseDevelopHeadEnhancement webhook.PullRequest
+	var prBaseDevelopHeadEnhancement models.PullRequest
 	prBaseDevelopHeadEnhancement.BaseRef = utils.Stringify("develop")
 	prBaseDevelopHeadEnhancement.HeadRef = utils.Stringify("enhancement/lala")
 
-	var prBaseDevelopHeadFix webhook.PullRequest
+	var prBaseDevelopHeadFix models.PullRequest
 	prBaseDevelopHeadFix.BaseRef = utils.Stringify("develop")
 	prBaseDevelopHeadFix.HeadRef = utils.Stringify("fix/lala")
 
-	var prBaseDevelopHeadBugFix webhook.PullRequest
+	var prBaseDevelopHeadBugFix models.PullRequest
 	prBaseDevelopHeadBugFix.BaseRef = utils.Stringify("develop")
 	prBaseDevelopHeadBugFix.HeadRef = utils.Stringify("bugfix/lala")
 
-	var prBaseLalalaHeadLalala webhook.PullRequest
+	var prBaseLalalaHeadLalala models.PullRequest
 	prBaseLalalaHeadLalala.BaseRef = utils.Stringify("lalala")
 	prBaseLalalaHeadLalala.HeadRef = utils.Stringify("lalalala2")
 
@@ -677,18 +686,18 @@ func TestBuild_GetPullRequestBySha(t *testing.T) {
 	}
 
 	type expects struct {
-		wantPullRequestWebhook *webhook.PullRequest
+		wantPullRequestWebhook *models.PullRequest
 		wantApiError           apierrors.ApiError
 		sqlGetErr              error
 	}
 
-	var pullRequest webhook.PullRequest
+	var pullRequest models.PullRequest
 	pullRequest.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
 	pullRequest.State = utils.Stringify("open")
 	pullRequest.HeadSha = utils.Stringify("123456789asdfghjkqwertyu")
 	pullRequest.CreatedBy = utils.Stringify("hbalmes")
 
-	var emptyPr webhook.PullRequest
+	var emptyPr models.PullRequest
 
 	tests := []struct {
 		name    string
@@ -742,7 +751,7 @@ func TestBuild_GetPullRequestBySha(t *testing.T) {
 
 			sqlStorage.EXPECT().
 				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(e interface{}, qry ...interface{}) webhook.PullRequest {
+				DoAndReturn(func(e interface{}, qry ...interface{}) models.PullRequest {
 					return *tt.expects.wantPullRequestWebhook
 				}).
 				Return(tt.expects.sqlGetErr).
@@ -759,7 +768,7 @@ func TestBuild_GetPullRequestBySha(t *testing.T) {
 func TestBuild_CreateAndSaveBuild(t *testing.T) {
 
 	type args struct {
-		pullRequest *webhook.PullRequest
+		pullRequest *models.PullRequest
 		newSemVer   semver.Version
 		buildType   string
 	}
@@ -770,7 +779,7 @@ func TestBuild_CreateAndSaveBuild(t *testing.T) {
 		sqlInsertError error
 	}
 
-	var pullRequest webhook.PullRequest
+	var pullRequest models.PullRequest
 	pullRequest.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
 	pullRequest.State = utils.Stringify("open")
 	pullRequest.HeadSha = utils.Stringify("123456789asdfghjkqwertyu")
@@ -959,6 +968,98 @@ func TestBuild_CreateAndSaveLatestBuild(t *testing.T) {
 
 			if got := s.CreateAndSaveLatestBuild(tt.args.build, &tt.args.lastBuild); !reflect.DeepEqual(got, tt.expects.wantApiErr) {
 				t.Errorf("CreateAndSaveLatestBuild() = %v, want %v", got, tt.expects.wantApiErr)
+			}
+		})
+	}
+}
+
+func TestBuild_getIssueCommentBody(t *testing.T) {
+
+	type args struct {
+		build *models.Build
+	}
+
+	type expects struct {
+		bodyResult string
+	}
+
+	var pendingBuild models.Build
+	pendingBuild.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	pendingBuild.Status = utils.Stringify("pending")
+	pendingBuild.Username = utils.Stringify("hbalmes")
+	pendingBuild.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	pendingBuild.Major = 0
+	pendingBuild.Minor = 1
+	pendingBuild.Patch = 0
+	pendingBuild.ID = 0
+
+	var finishedBuild models.Build
+	finishedBuild.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	finishedBuild.Status = utils.Stringify("finished")
+	finishedBuild.Username = utils.Stringify("hbalmes")
+	finishedBuild.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	finishedBuild.Major = 0
+	finishedBuild.Minor = 1
+	finishedBuild.Patch = 0
+	finishedBuild.ID = 0
+
+	var errorBuild models.Build
+	errorBuild.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	errorBuild.Status = utils.Stringify("error")
+	errorBuild.Username = utils.Stringify("hbalmes")
+	errorBuild.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	errorBuild.Major = 0
+	errorBuild.Minor = 1
+	errorBuild.Patch = 0
+	errorBuild.ID = 0
+
+	tests := []struct {
+		name    string
+		args    args
+		expects expects
+	}{
+		{
+			name: "pending issue comment body",
+			args: args{
+				build: &pendingBuild,
+			},
+			expects: expects{
+				bodyResult: "# Build report \n\n> **Status:** _[pending](http://url/hbalmes/ci-cd_api/build)_  :clock8:\n**Version:**[0.1.0](http://url/hbalmes/ci-cd_api/builds/0)",
+			},
+		},
+		{
+			name: "finished issue comment body",
+			args: args{
+				build: &finishedBuild,
+			},
+			expects: expects{
+				bodyResult: "# Build report \n\n> **Status:** _[finished](http://url/hbalmes/ci-cd_api/build)_  :white_check_mark:\n**Version:**[0.1.0](http://url/hbalmes/ci-cd_api/builds/0)",
+			},
+		},
+		{
+			name: "error issue comment body",
+			args: args{
+				build: &errorBuild,
+			},
+			expects: expects{
+				bodyResult: "# Build report \n\n> **Status:** _[error](http://url/hbalmes/ci-cd_api/build)_  :red_circle:\n**Version:**[0.1.0](http://url/hbalmes/ci-cd_api/builds/0)",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
+			ghClient := interfaces.NewMockGithubClient(ctrl)
+
+			s := &Build{
+				SQL:          sqlStorage,
+				GithubClient: ghClient,
+			}
+			if got := s.getIssueCommentBody(tt.args.build); got != tt.expects.bodyResult {
+				t.Errorf("getIssueCommentBody() = %v, want %v", got, tt.expects.bodyResult)
 			}
 		})
 	}
