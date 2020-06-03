@@ -18,12 +18,17 @@ const (
 	dbLocalName     = "configurations"
 )
 
+const (
+	dbProductionUser     = "root"
+	dbProductionPassword = "123456"
+	dbProductionName     = "configurations"
+)
+
 func GetDBConnectionParams() []interface{} {
 	switch scope := os.Getenv("SCOPE"); scope {
 	case "production", "test":
-		//return []interface{}{dbProductionUser, dbProductionPassword, dbProductionHost, dbProductionName}
-		//TODO: Cambiar a los valores
-		return []interface{}{dbStageUser, dbStagePassword, dbStageHost, dbStageName}
+		dbProdHost := os.Getenv("CLEARDB_DATABASE_URL")
+		return []interface{}{dbProductionUser, dbProductionPassword, dbProdHost, dbProductionName}
 	case "stage":
 		return []interface{}{dbStageUser, dbStagePassword, dbStageHost, dbStageName}
 	default:

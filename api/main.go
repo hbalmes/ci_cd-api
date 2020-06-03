@@ -7,6 +7,7 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
 	"github.com/hbalmes/ci_cd-api/api/services/storage"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
+	"os"
 )
 
 func init() {
@@ -18,6 +19,8 @@ func init() {
 	//	gin.DisableConsoleColor()
 	//}
 }
+
+const defaultPort = ":8080"
 
 func main() {
 	sql, err := storage.NewMySQL()
@@ -33,5 +36,12 @@ func main() {
 
 	router := routers.Route()
 	//Init GinGonic server
-	router.Run(":8080")
+
+	serverPort := os.Getenv("PORT")
+
+	//Hack to heroku
+	if serverPort == "" {
+		serverPort = defaultPort
+	}
+	router.Run(serverPort)
 }
