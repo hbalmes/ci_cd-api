@@ -19,16 +19,17 @@ const (
 )
 
 const (
-	dbProductionUser     = "root"
-	dbProductionPassword = "123456"
-	dbProductionName     = "configurations"
+	dbProductionUser     = "bde563f654d6b4"
+	dbProductionPassword = "dc427777"
+	dbProductionName     = "heroku_56d233420e055a9"
+	dbProductionHost     = "us-cdbr-east-05.cleardb.net"
 )
 
 func GetDBConnectionParams() []interface{} {
 	switch scope := os.Getenv("SCOPE"); scope {
 	case "production", "test":
-		dbProdHost := os.Getenv("CLEARDB_DATABASE_URL")
-		return []interface{}{dbProductionUser, dbProductionPassword, dbProdHost, dbProductionName}
+		//dbProdHost := os.Getenv("CLEARDB_DATABASE_URL")
+		return []interface{}{dbProductionUser, dbProductionPassword, dbProductionHost, dbProductionName}
 	case "stage":
 		return []interface{}{dbStageUser, dbStagePassword, dbStageHost, dbStageName}
 	default:
