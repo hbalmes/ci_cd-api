@@ -43,5 +43,5 @@ func main() {
 	if serverPort == "" {
 		serverPort = defaultPort
 	}
-	router.Run(serverPort)
+	router.Run(":" + serverPort)
 }
