@@ -1329,8 +1329,8 @@ func Test_githubClient_CreateIssueComment(t *testing.T) {
 		{
 			name: "bad request branch name nil (invalid github body params)",
 			args: args{
-				config:      &cicdConfigBadRequest,
-				pullRequest: &pullr,
+				config:           &cicdConfigBadRequest,
+				pullRequest:      &pullr,
 				issueCommentBody: "lalalala",
 			},
 			expects: expects{
@@ -1345,8 +1345,8 @@ func Test_githubClient_CreateIssueComment(t *testing.T) {
 				mockError: errors.New("some error"),
 			},
 			args: args{
-				config: &cicdConfigOK,
-				pullRequest: &pullr,
+				config:           &cicdConfigOK,
+				pullRequest:      &pullr,
 				issueCommentBody: "lalalala",
 			},
 			expects: expects{
@@ -1360,8 +1360,8 @@ func Test_githubClient_CreateIssueComment(t *testing.T) {
 				mockStatusCode: 404,
 			},
 			args: args{
-				config: &cicdConfigOK,
-				pullRequest: &pullr,
+				config:           &cicdConfigOK,
+				pullRequest:      &pullr,
 				issueCommentBody: "lalalala",
 			},
 			expects: expects{
@@ -1380,8 +1380,8 @@ func Test_githubClient_CreateIssueComment(t *testing.T) {
 				}),
 			},
 			args: args{
-				config: &cicdConfigOK,
-				pullRequest: &pullr,
+				config:           &cicdConfigOK,
+				pullRequest:      &pullr,
 				issueCommentBody: "lalalala",
 			},
 			expects: expects{
@@ -1428,6 +1428,201 @@ func Test_githubClient_CreateIssueComment(t *testing.T) {
 
 			if got := c.CreateIssueComment(tt.args.config, tt.args.pullRequest, tt.args.issueCommentBody); !reflect.DeepEqual(got, tt.expects.error) {
 				t.Errorf("CreateIssueComment() = %v, want %v", got, tt.expects.error)
+			}
+		})
+	}
+}
+
+func Test_githubClient_CreateRelease(t *testing.T) {
+	type restResponse struct {
+		mockError      error
+		mockStatusCode int
+		mockBytes      []byte
+	}
+
+	type args struct {
+		config *models.Configuration
+		build  *models.Build
+		body   map[string]interface{}
+	}
+
+	type expects struct {
+		error apierrors.ApiError
+		want  *models.GetBranchResponse
+	}
+
+	statusList := []string{"workflow", "continuous-integration", "minimum-coverage", "pull-request-coverage"}
+
+	reqChecks := make([]models.RequireStatusCheck, 0)
+	for _, rq := range statusList {
+		reqChecks = append(reqChecks, models.RequireStatusCheck{
+			Check: rq,
+		})
+	}
+
+	codeCoverageThreadhold := 80.0
+
+	var cicdConfigOK = models.Configuration{
+		ID:                               utils.Stringify("hbalmes/ci-cd_api"),
+		RepositoryName:                   utils.Stringify("ci-cd_api"),
+		RepositoryOwner:                  utils.Stringify("hbalmes"),
+		RepositoryStatusChecks:           reqChecks,
+		WorkflowType:                     utils.Stringify("gitflow"),
+		CodeCoveragePullRequestThreshold: &codeCoverageThreadhold,
+	}
+
+	var productiveBuild models.Build
+	productiveBuild.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	productiveBuild.Status = utils.Stringify("pending")
+	productiveBuild.Username = utils.Stringify("hbalmes")
+	productiveBuild.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	productiveBuild.Major = 0
+	productiveBuild.Minor = 1
+	productiveBuild.Patch = 0
+	productiveBuild.ID = 0
+	productiveBuild.Body = utils.Stringify("release created automatically by hbalmes/ci_cd-api")
+	productiveBuild.Type = utils.Stringify("productive")
+
+	var testWithTagBuild models.Build
+	testWithTagBuild.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	testWithTagBuild.Status = utils.Stringify("pending")
+	testWithTagBuild.Username = utils.Stringify("hbalmes")
+	testWithTagBuild.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	testWithTagBuild.Major = 0
+	testWithTagBuild.Minor = 1
+	testWithTagBuild.Patch = 0
+	testWithTagBuild.ID = 0
+	testWithTagBuild.Body = utils.Stringify("release created automatically by hbalmes/ci_cd-api")
+	testWithTagBuild.Type = utils.Stringify("test")
+	testWithTagBuild.Tag = utils.Stringify("test")
+
+	var finishedBuild models.Build
+	finishedBuild.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	finishedBuild.Status = utils.Stringify("finished")
+	finishedBuild.Username = utils.Stringify("hbalmes")
+	finishedBuild.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	finishedBuild.Major = 0
+	finishedBuild.Minor = 1
+	finishedBuild.Patch = 0
+	finishedBuild.ID = 0
+
+	var badRequestBuild models.Build
+	badRequestBuild.Status = utils.Stringify("pending")
+
+	tests := []struct {
+		name         string
+		args         args
+		restResponse restResponse
+		wantErr      bool
+		expects      expects
+	}{
+		{
+			name: "bad request build sha was nil",
+			args: args{
+				config: &cicdConfigOK,
+				build:  &badRequestBuild,
+			},
+			expects: expects{
+				error: apierrors.NewBadRequestApiError("invalid body params"),
+			},
+			restResponse: restResponse{},
+			wantErr:      true,
+		},
+		{
+			name: "Bad request creating release",
+			restResponse: restResponse{
+				mockStatusCode: 400,
+			},
+			args: args{
+				config: &cicdConfigOK,
+				build: &productiveBuild,
+			},
+			expects: expects{
+				error: apierrors.NewInternalServerApiError("error creating new release", nil),
+			},
+			wantErr: true,
+		},
+		{
+			name: "rest client error creating a new release",
+			restResponse: restResponse{
+				mockError: errors.New("some error"),
+			},
+			args: args{
+				config: &cicdConfigOK,
+				build: &productiveBuild,
+			},
+
+			expects: expects{
+				error: apierrors.NewInternalServerApiError("restClient Error creating new release", errors.New("some error")),
+			},
+			wantErr: true,
+		},
+		{
+			name: "release with tag created successfully",
+			restResponse: restResponse{
+				mockStatusCode: 201,
+			},
+			args: args{
+				config: &cicdConfigOK,
+				build: &testWithTagBuild,
+			},
+			expects: expects{
+				error: nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "release created successfully",
+			restResponse: restResponse{
+				mockStatusCode: 201,
+			},
+			args: args{
+				config: &cicdConfigOK,
+				build: &productiveBuild,
+			},
+			expects: expects{
+				error: nil,
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			client := NewMockClient(ctrl)
+			response := NewMockResponse(ctrl)
+
+			response.
+				EXPECT().
+				Err().
+				Return(tt.restResponse.mockError).
+				AnyTimes()
+
+			response.
+				EXPECT().
+				StatusCode().
+				Return(tt.restResponse.mockStatusCode).
+				AnyTimes()
+
+			response.
+				EXPECT().
+				Bytes().
+				Return(tt.restResponse.mockBytes).
+				AnyTimes()
+
+			client.EXPECT().
+				Post(gomock.Any(), gomock.Any()).
+				Return(response).
+				AnyTimes()
+
+			c := &githubClient{
+				Client: client,
+			}
+			if got := c.CreateRelease(tt.args.config, tt.args.build); !reflect.DeepEqual(got, tt.expects.error) {
+				t.Errorf("CreateRelease() = %v, want %v", got, tt.expects.error)
 			}
 		})
 	}

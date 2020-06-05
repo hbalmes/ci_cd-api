@@ -3,8 +3,6 @@ package services
 import (
 	"fmt"
 	"github.com/coreos/go-semver/semver"
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/hbalmes/ci_cd-api/api/clients"
 	"github.com/hbalmes/ci_cd-api/api/models"
 	"github.com/hbalmes/ci_cd-api/api/models/webhook"
@@ -23,6 +21,7 @@ const (
 	initialPatch       = 0
 	initialBuildStatus = "pending"
 	initialBuildType   = "productive"
+	automaticBuildBody = "release created automatically by hbalmes/ci_cd-api"
 )
 
 type BuildService interface {
@@ -267,6 +266,7 @@ func (s *Build) CreateAndSaveBuild(pullRequest *models.PullRequest, newSemVer se
 	build.CreatedAt = utils.Stringify(time.Now().Format("2006-01-02 15:04:05"))
 	build.Branch = pullRequest.HeadRef
 	build.Username = pullRequest.CreatedBy
+	build.Body = utils.Stringify(automaticBuildBody)
 
 	//Save it into build table
 	if err := s.SQL.Insert(&build); err != nil {
@@ -320,43 +320,4 @@ func (s *Build) GetIssueCommentBody(build *models.Build) string {
 		"> **Status:** _" + fmt.Sprintf("[%s](http://url/%s/build)_  %s", *build.Status, *build.RepositoryName, emoji) + "\n" +
 		"**Version:**" + fmt.Sprintf("[%d.%d.%d](http://url/%s/builds/%s)", build.Major, build.Minor, build.Patch, *build.RepositoryName, buildID)
 	return body
-}
-
-func (s *Build) BuildApplicationBinary(build *models.Build, config *models.Configuration) apierrors.ApiError {
-
-	buildPath := "/tmp" //TODO: Llevarlo a una consante
-	directory := fmt.Sprintf("%s/%s", buildPath, *config.ID )
-
-	//Clone the repository
-	repo, err := git.PlainClone(directory, false, &git.CloneOptions{
-		URL: fmt.Sprintf("https://github.com/%s", *config.ID),
-	})
-
-	if err != nil {
-		return apierrors.NewInternalServerApiError("error cloning repository", err)
-	}
-
-
-	//Get workingTree
-	w, err := repo.Worktree()
-
-	// ... checking out to commit
-	err = w.Checkout(&git.CheckoutOptions{
-		Hash: plumbing.NewHash(*build.Sha),
-	})
-
-	if err != nil {
-		return apierrors.NewInternalServerApiError("error checking out to commit", err)
-	}
-
-
-
-
-	//TODO: De acuerdo a la tech, ejecutar el comando para  crear el binario
-	//TODO: de acuerdo al repo name,
-
-
-
-	return nil
-
 }
