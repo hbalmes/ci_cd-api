@@ -147,3 +147,17 @@ func (mr *MockGithubClientMockRecorder) CreateIssueComment(config, pullRequest, 
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateIssueComment", reflect.TypeOf((*MockGithubClient)(nil).CreateIssueComment), config, pullRequest, issueCommentBody)
 }
+
+// CreateRelease mocks base method
+func (m *MockGithubClient) CreateRelease(config *models.Configuration, build *models.Build) apierrors.ApiError {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateRelease", config, build)
+	ret0, _ := ret[0].(apierrors.ApiError)
+	return ret0
+}
+
+// CreateRelease indicates an expected call of CreateRelease
+func (mr *MockGithubClientMockRecorder) CreateRelease(config, build interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRelease", reflect.TypeOf((*MockGithubClient)(nil).CreateRelease), config, build)
+}

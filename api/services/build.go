@@ -21,6 +21,7 @@ const (
 	initialPatch       = 0
 	initialBuildStatus = "pending"
 	initialBuildType   = "productive"
+	automaticBuildBody = "release created automatically by hbalmes/ci_cd-api"
 )
 
 type BuildService interface {
@@ -70,12 +71,32 @@ func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Stat
 		incrementer, buildType := s.GetIncrementerAndType(pRequest)
 		newSemVer := s.IncrementSemVer(*lastBuild, incrementer)
 
-		build, err := s.CreateAndSaveBuild(pRequest, newSemVer, buildType)
+		//Creates the build entity
+		build:= s.CreateBuild(pRequest, newSemVer, buildType)
 
-		if err != nil {
-			return nil, err
+		//Creates the github release
+		createGHReleaseErr := s.GithubClient.CreateRelease(config, build)
+
+		if createGHReleaseErr != nil {
+			return nil, createGHReleaseErr
 		}
 
+		//Release Tag Name
+		tagName := fmt.Sprintf("v%d.%d.%d", build.Major, build.Minor, build.Patch)
+		if build.Tag != nil {
+			tagName = tagName + "-" + *build.Tag
+		}
+
+		build.GithubURL = utils.Stringify(tagName)
+
+		//Save Build into db
+		saveBuildErr := s.SaveBuild(build)
+
+		if saveBuildErr != nil {
+			return nil, saveBuildErr
+		}
+
+		//Save latest Build into db
 		saveLatestErr := s.CreateAndSaveLatestBuild(build, lastBuild)
 
 		if saveLatestErr != nil {
@@ -251,7 +272,7 @@ func (s *Build) IncrementSemVer(version semver.Version, incrementer string) semv
 	return newVersion
 }
 
-func (s *Build) CreateAndSaveBuild(pullRequest *models.PullRequest, newSemVer semver.Version, buildType string) (*models.Build, apierrors.ApiError) {
+func (s *Build) CreateBuild(pullRequest *models.PullRequest, newSemVer semver.Version, buildType string) *models.Build {
 	var build models.Build
 
 	build.Major = uint8(newSemVer.Major)
@@ -265,14 +286,21 @@ func (s *Build) CreateAndSaveBuild(pullRequest *models.PullRequest, newSemVer se
 	build.CreatedAt = utils.Stringify(time.Now().Format("2006-01-02 15:04:05"))
 	build.Branch = pullRequest.HeadRef
 	build.Username = pullRequest.CreatedBy
+	build.Body = utils.Stringify(automaticBuildBody)
 
+	return &build
+}
+
+func (s *Build) SaveBuild(build *models.Build) apierrors.ApiError {
 	//Save it into build table
 	if err := s.SQL.Insert(&build); err != nil {
-		return nil, apierrors.NewInternalServerApiError("something was wrong inserting new build", err)
+		return apierrors.NewInternalServerApiError("something was wrong inserting new build", err)
 	}
-
-	return &build, nil
+	return nil
 }
+
+
+
 
 func (s *Build) CreateAndSaveLatestBuild(build *models.Build, lastBuild *semver.Version) apierrors.ApiError {
 

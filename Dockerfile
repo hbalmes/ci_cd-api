@@ -1,10 +1,14 @@
-# Dockerfile References: https://docs.docker.com/engine/reference/builder/
+# build stage
+FROM golang:1.12.17-alpine3.11
 
-# Start from the latest golang base image
-FROM golang:1.12
+RUN apk add git
 
-# Add Maintainer Info
-LABEL maintainer="Hernan Balmes <herbal828@gmail.com>"
+RUN mkdir /app
+
+ADD . /app
+
+# Set the Current Working Directory inside the container
+WORKDIR /app/api
 
 # Copy go mod and sum files
 COPY go.mod go.sum /
@@ -22,7 +26,4 @@ RUN go build -o main .
 EXPOSE 8080
 
 # Command to run the executable
-CMD go run /app
-
-# Set the Current Working Directory inside the container
-WORKDIR /app
+CMD go run .

@@ -14,4 +14,7 @@ type Build struct {
 	CreatedAt      *string `json:"created_at"`
 	RepositoryName *string `json:"repository_name"`
 	Type           *string `json:"type"`
+	Body           *string `json:"body"`
+	GithubID       *string `json:"github_id"`
+	GithubURL      *string `json:"github_url"`
 }

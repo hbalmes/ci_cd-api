@@ -765,7 +765,7 @@ func TestBuild_GetPullRequestBySha(t *testing.T) {
 	}
 }
 
-func TestBuild_CreateAndSaveBuild(t *testing.T) {
+func TestBuild_CreateBuild(t *testing.T) {
 
 	type args struct {
 		pullRequest *models.PullRequest
@@ -821,12 +821,79 @@ func TestBuild_CreateAndSaveBuild(t *testing.T) {
 				wantBuild: &buildOK,
 			},
 		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			sqlStorage := interfaces.NewMockSQLStorage(ctrl)
+
+			s := &Build{
+				SQL: sqlStorage,
+			}
+
+			got := s.CreateBuild(tt.args.pullRequest, tt.args.newSemVer, tt.args.buildType)
+
+			if got != nil {
+				assert.Equal(t, utils.Stringify("123456789asdfghjkqwertyu"), tt.expects.wantBuild.Sha)
+				assert.Equal(t, utils.Stringify("pending"), tt.expects.wantBuild.Status)
+				assert.Equal(t, utils.Stringify("hbalmes"), tt.expects.wantBuild.Username)
+				assert.Equal(t, utils.Stringify("hbalmes/ci-cd_api"), tt.expects.wantBuild.RepositoryName)
+				assert.Equal(t, uint8(0), tt.expects.wantBuild.Major)
+				assert.Equal(t, uint16(1), tt.expects.wantBuild.Minor)
+				assert.Equal(t, uint16(0), tt.expects.wantBuild.Patch)
+				assert.Equal(t, utils.Stringify("release/lalala"), tt.expects.wantBuild.Branch)
+				assert.Equal(t, utils.Stringify("productive"), tt.expects.wantBuild.Type)
+			}
+		})
+	}
+}
+
+
+func TestBuild_SaveBuild(t *testing.T) {
+
+	type args struct {
+		build *models.Build
+	}
+
+	type expects struct {
+		wantBuild      *models.Build
+		wantApiErr     apierrors.ApiError
+		sqlInsertError error
+	}
+
+	var buildOK models.Build
+	buildOK.Sha = utils.Stringify("123456789asdfghjkqwertyu")
+	buildOK.Status = utils.Stringify("pending")
+	buildOK.Username = utils.Stringify("hbalmes")
+	buildOK.RepositoryName = utils.Stringify("hbalmes/ci-cd_api")
+	buildOK.Major = 0
+	buildOK.Minor = 1
+	buildOK.Patch = 0
+	buildOK.Branch = utils.Stringify("release/lalala")
+	buildOK.Type = utils.Stringify("productive")
+	buildOK.ID = 0
+
+	tests := []struct {
+		name    string
+		args    args
+		expects expects
+	}{
+		{
+			name: "build created and saved successfully",
+			args: args{
+				build: &buildOK,
+			},
+			expects: expects{
+				wantBuild: &buildOK,
+			},
+		},
 		{
 			name: "error creating build, error inserting build to db",
 			args: args{
-				pullRequest: &pullRequest,
-				newSemVer:   initialSemVer,
-				buildType:   "productive",
+				build: &buildOK,
 			},
 			expects: expects{
 				wantBuild:      nil,
@@ -852,21 +919,10 @@ func TestBuild_CreateAndSaveBuild(t *testing.T) {
 				SQL: sqlStorage,
 			}
 
-			got, got1 := s.CreateAndSaveBuild(tt.args.pullRequest, tt.args.newSemVer, tt.args.buildType)
+			got := s.SaveBuild(tt.args.build)
 
-			if got != nil {
-				assert.Equal(t, utils.Stringify("123456789asdfghjkqwertyu"), tt.expects.wantBuild.Sha)
-				assert.Equal(t, utils.Stringify("pending"), tt.expects.wantBuild.Status)
-				assert.Equal(t, utils.Stringify("hbalmes"), tt.expects.wantBuild.Username)
-				assert.Equal(t, utils.Stringify("hbalmes/ci-cd_api"), tt.expects.wantBuild.RepositoryName)
-				assert.Equal(t, uint8(0), tt.expects.wantBuild.Major)
-				assert.Equal(t, uint16(1), tt.expects.wantBuild.Minor)
-				assert.Equal(t, uint16(0), tt.expects.wantBuild.Patch)
-				assert.Equal(t, utils.Stringify("release/lalala"), tt.expects.wantBuild.Branch)
-				assert.Equal(t, utils.Stringify("productive"), tt.expects.wantBuild.Type)
-			}
-			if !reflect.DeepEqual(got1, tt.expects.wantApiErr) {
-				t.Errorf("CreateAndSaveBuild() got1 = %v, want %v", got1, tt.expects.wantApiErr)
+			if !reflect.DeepEqual(got, tt.expects.wantApiErr) {
+				t.Errorf("CreateAndSaveBuild() got1 = %v, want %v", got, tt.expects.wantApiErr)
 			}
 		})
 	}

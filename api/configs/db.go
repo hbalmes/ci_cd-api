@@ -18,12 +18,18 @@ const (
 	dbLocalName     = "configurations"
 )
 
+const (
+	dbProductionUser     = "bde563f654d6b4"
+	dbProductionPassword = "dc427777"
+	dbProductionName     = "heroku_56d233420e055a9"
+	dbProductionHost     = "us-cdbr-east-05.cleardb.net"
+)
+
 func GetDBConnectionParams() []interface{} {
 	switch scope := os.Getenv("SCOPE"); scope {
 	case "production", "test":
-		//return []interface{}{dbProductionUser, dbProductionPassword, dbProductionHost, dbProductionName}
-		//TODO: Cambiar a los valores
-		return []interface{}{dbStageUser, dbStagePassword, dbStageHost, dbStageName}
+		//dbProdHost := os.Getenv("CLEARDB_DATABASE_URL")
+		return []interface{}{dbProductionUser, dbProductionPassword, dbProductionHost, dbProductionName}
 	case "stage":
 		return []interface{}{dbStageUser, dbStagePassword, dbStageHost, dbStageName}
 	default:

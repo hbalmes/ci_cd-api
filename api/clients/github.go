@@ -27,6 +27,7 @@ type GithubClient interface {
 	CreateStatus(config *models.Configuration, statusWH *webhook.Status) apierrors.ApiError
 	CreateBranch(config *models.Configuration, branchConfig *models.Branch, sha string) apierrors.ApiError
 	CreateIssueComment(config *models.Configuration, pullRequest *models.PullRequest, issueCommentBody string) apierrors.ApiError
+	CreateRelease(config *models.Configuration, build *models.Build) apierrors.ApiError
 }
 
 type githubClient struct {
@@ -278,6 +279,49 @@ func (c *githubClient) CreateIssueComment(config *models.Configuration, pullRequ
 
 	if response.StatusCode() != http.StatusOK && response.StatusCode() != http.StatusCreated {
 		return apierrors.NewInternalServerApiError("error creating new issue comment", response.Err())
+	}
+
+	return nil
+}
+
+
+//CreateRelease create a new github release.
+//This perform a POST request
+func (c *githubClient) CreateRelease(config *models.Configuration, build *models.Build) apierrors.ApiError {
+
+	if config.RepositoryOwner == nil || config.RepositoryName == nil || build.Sha == nil{
+		return apierrors.NewBadRequestApiError("invalid body params")
+	}
+
+	//Release Name
+	tagName := fmt.Sprintf("v%d.%d.%d", build.Major, build.Minor, build.Patch)
+	if build.Tag != nil {
+		tagName = tagName + "-" + *build.Tag
+	}
+
+	//Is a pre release (not ready for production)
+	preRelease := false
+	if *build.Type == "test" {
+		preRelease = true
+	}
+
+	body := map[string]interface{}{
+		"tag_name": tagName,
+		"target_commitish": build.Sha,
+		"name": tagName,
+		"body": build.Body,
+		"draft": false,
+		"prerelease": preRelease,
+	}
+
+	response := c.Client.Post(fmt.Sprintf("/repos/%s/%s/releases", *config.RepositoryOwner, *config.RepositoryName), body)
+
+	if response.Err() != nil {
+		return apierrors.NewInternalServerApiError("restClient Error creating new release", response.Err())
+	}
+
+	if response.StatusCode() != http.StatusOK && response.StatusCode() != http.StatusCreated {
+		return apierrors.NewInternalServerApiError("error creating new release", response.Err())
 	}
 
 	return nil
