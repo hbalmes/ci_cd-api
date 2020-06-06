@@ -16,4 +16,5 @@ type Build struct {
 	Type           *string `json:"type"`
 	Body           *string `json:"body"`
 	GithubID       *string `json:"github_id"`
+	GithubURL      *string `json:"github_url"`
 }

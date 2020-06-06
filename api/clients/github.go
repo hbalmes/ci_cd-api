@@ -27,6 +27,7 @@ type GithubClient interface {
 	CreateStatus(config *models.Configuration, statusWH *webhook.Status) apierrors.ApiError
 	CreateBranch(config *models.Configuration, branchConfig *models.Branch, sha string) apierrors.ApiError
 	CreateIssueComment(config *models.Configuration, pullRequest *models.PullRequest, issueCommentBody string) apierrors.ApiError
+	CreateRelease(config *models.Configuration, build *models.Build) apierrors.ApiError
 }
 
 type githubClient struct {
