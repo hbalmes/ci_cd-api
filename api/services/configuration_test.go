@@ -9,6 +9,7 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/jinzhu/gorm"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
 	"time"
 )
@@ -19,12 +20,12 @@ func TestConfiguration_Create(t *testing.T) {
 	}
 
 	type expects struct {
-		sqlGetByError       error
-		sqlInsertError      error
-		setWorkflowError 	apierrors.ApiError
-		getConfigError      error
-		config              *models.Configuration
-		error               apierrors.ApiError
+		sqlGetByError    error
+		sqlInsertError   error
+		setWorkflowError apierrors.ApiError
+		getConfigError   error
+		config           *models.Configuration
+		error            apierrors.ApiError
 	}
 
 	statusList := []string{"workflow", "continuous-integration", "minimum-coverage", "pull-request-coverage"}
@@ -67,9 +68,9 @@ func TestConfiguration_Create(t *testing.T) {
 				payload: &postRequestPayloadOK,
 			},
 			expects: expects{
-				sqlGetByError:    gorm.ErrInvalidSQL,
-				sqlInsertError:   nil,
-				error:            apierrors.NewInternalServerApiError("error checking configuration existence", nil),
+				sqlGetByError:  gorm.ErrInvalidSQL,
+				sqlInsertError: nil,
+				error:          apierrors.NewInternalServerApiError("error checking configuration existence", nil),
 			},
 			wantErr: true,
 		},
@@ -105,8 +106,8 @@ func TestConfiguration_Create(t *testing.T) {
 				payload: &postRequestPayloadOK,
 			},
 			expects: expects{
-				sqlGetByError:    gorm.ErrRecordNotFound,
-				config: &cicdConfigOK,
+				sqlGetByError: gorm.ErrRecordNotFound,
+				config:        &cicdConfigOK,
 			},
 			wantErr: false,
 		},
@@ -221,9 +222,124 @@ func TestConfiguration_Get(t *testing.T) {
 				AnyTimes()
 
 			s := &Configuration{
-				SQL:    sqlStorage,
+				SQL: sqlStorage,
 			}
 
+			_, err := s.Get(tt.args.id)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Configuration.Get() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+		})
+	}
+}
+
+func TestConfiguration_GetProductionScopeOK(t *testing.T) {
+	type args struct {
+		id    string
+		times int
+	}
+
+	type expects struct {
+		errorLog string
+		infoLog  string
+		error    error
+		config   models.Configuration
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		expects expects
+	}{
+		{
+			name: "wake up db success",
+			args: args{
+				id:    "fury_repo-name",
+			},
+			expects: expects{
+				error: nil,
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			ctl := gomock.NewController(t)
+			defer ctl.Finish()
+
+			sqlStorage := interfaces.NewMockSQLStorage(ctl)
+
+			sqlStorage.EXPECT().
+				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(tt.expects.error).
+				AnyTimes()
+
+			s := &Configuration{
+				SQL: sqlStorage,
+			}
+
+			os.Setenv("SCOPE", "production")
+			_, err := s.Get(tt.args.id)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Configuration.Get() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+		})
+	}
+}
+
+func TestConfiguration_GetProductionScopeFails(t *testing.T) {
+	type args struct {
+		id    string
+		times int
+	}
+
+	type expects struct {
+		errorLog string
+		infoLog  string
+		error    error
+		config   models.Configuration
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		expects expects
+	}{
+		{
+			name: "wake up db fail - fails 15 times",
+			args: args{
+				id:    "fury_repo-name",
+				times: 5,
+			},
+			expects: expects{
+				error: gorm.ErrInvalidSQL,
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			ctl := gomock.NewController(t)
+			defer ctl.Finish()
+
+			sqlStorage := interfaces.NewMockSQLStorage(ctl)
+
+			sqlStorage.EXPECT().
+				GetBy(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(tt.expects.error).
+				Times(tt.args.times)
+
+			s := &Configuration{
+				SQL: sqlStorage,
+			}
+
+			os.Setenv("SCOPE", "production")
 			_, err := s.Get(tt.args.id)
 
 			if (err != nil) != tt.wantErr {

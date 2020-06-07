@@ -77,7 +77,7 @@ func (s *Configuration) Get(id string) (*models.Configuration, error) {
 	//To wakeup the db.
 	scope := os.Getenv("SCOPE")
 	if scope == "production" {
-		for i := 1; i < 15; i++ {
+		for i := 1; i < 5; i++ {
 			if err := s.SQL.GetBy(&cf, "id = ?", "hbalmes/ci_cd-api"); err != nil {
 				if err != gorm.ErrRecordNotFound {
 					continue
