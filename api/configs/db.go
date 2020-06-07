@@ -22,7 +22,7 @@ func GetDBConnectionParams() []interface{} {
 	switch scope := os.Getenv("SCOPE"); scope {
 	case "production", "test":
 		//dbProdHost := os.Getenv("CLEARDB_DATABASE_URL")
-		return []interface{}{os.Getenv("DBUSER"), os.Getenv("DBPASS"), os.Getenv("DBNAME"), os.Getenv("DBHOST")}
+		return []interface{}{os.Getenv("DBUSER"), os.Getenv("DBPASS"), os.Getenv("DBHOST"), os.Getenv("DBNAME")}
 	case "stage":
 		return []interface{}{dbStageUser, dbStagePassword, dbStageHost, dbStageName}
 	default:
