@@ -22,6 +22,10 @@ func TestGetWorkflowConfiguration(t *testing.T) {
 		WorkflowType:                     utils.Stringify("gitflow"),
 	}
 
+	configWithFeatureWorkflow := models.Configuration{
+		WorkflowType:                     utils.Stringify("feature"),
+	}
+
 	var wfConfig models.WorkflowConfig
 	wfConfig.Name = utils.Stringify("gitflow")
 	wfConfig.DefaultBranch = utils.Stringify("develop")
@@ -34,6 +38,15 @@ func TestGetWorkflowConfiguration(t *testing.T) {
 		{
 			name: "gitflow wf config getted",
 			args: args{configuration: &configWithGitflow},
+			expects: expects{
+				name:          "gitflow",
+				defaultBranch: "develop",
+				detail:        "Workflow Description",
+			},
+		},
+		{
+			name: "default wf config getted",
+			args: args{configuration: &configWithFeatureWorkflow},
 			expects: expects{
 				name:          "gitflow",
 				defaultBranch: "develop",
