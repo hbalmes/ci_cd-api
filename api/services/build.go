@@ -19,7 +19,7 @@ const (
 	initialMajor       = 0
 	initialMinor       = 0
 	initialPatch       = 0
-	initialBuildStatus = "pending"
+	initialBuildStatus = "finished"
 	initialBuildType   = "productive"
 	automaticBuildBody = "release created automatically by hbalmes/ci_cd-api"
 )
@@ -343,7 +343,9 @@ func (s *Build) GetIssueCommentBody(build *models.Build) string {
 	buildID := strconv.Itoa(int(build.ID))
 
 	body = "# Build report \n" + "\n" +
-		"> **Status:** _" + fmt.Sprintf("[%s](http://url/%s/build)_  %s", *build.Status, *build.RepositoryName, emoji) + "\n" +
-		"**Version:**" + fmt.Sprintf("[%d.%d.%d](http://url/%s/builds/%s)", build.Major, build.Minor, build.Patch, *build.RepositoryName, buildID)
+		"> **Status:** _" + fmt.Sprintf("**%s** %s", *build.Status, emoji) + "\n" +
+		"**Version:**" + fmt.Sprintf("[%s](https://github.com/%s/releases/tag/%s)", *build.GithubURL, *build.RepositoryName, *build.GithubURL) +
+		"> **ID:**" + fmt.Sprintf("%s", buildID)
 	return body
 }
+
