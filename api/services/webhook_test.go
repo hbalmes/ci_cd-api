@@ -204,7 +204,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 				errorDelete: nil,
 				config:      &cicdConfigOK,
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "test - action: dismissed - error getting webhook from db - not delete",

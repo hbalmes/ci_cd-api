@@ -306,7 +306,6 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 			if err == gorm.ErrRecordNotFound {
 				log.Error().Err(err).Str("action", *payload.Action).Str("state", *payload.Review.State).
 					Str("repository", *payload.Repository.FullName).Msg("webhook not found")
-				return nil, apierrors.NewNotFoundApiError("webhook not found")
 			} else {
 				log.Error().Err(err).Str("action", *payload.Action).Str("state", *payload.Review.State).
 					Str("repository", *payload.Repository.FullName).
