@@ -8,6 +8,7 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/utils"
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/jinzhu/gorm"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -227,6 +228,8 @@ func (s *Webhook) ProcessPullRequestWebhook(payload *webhook.PullRequestWebhook)
 
 //ProcessPullRequestWebhook process
 func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestReviewWebhook) (*webhook.Webhook, apierrors.ApiError) {
+	log.Info().Str("action", *payload.Action).Str("state", *payload.Review.State).
+		Str("repository", *payload.Repository.FullName).Msg("processing pull request review webhook")
 
 	var wh webhook.Webhook
 
@@ -234,12 +237,18 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 	config, err := s.ConfigService.Get(*payload.Repository.FullName)
 
 	if err != nil {
+		log.Error().Err(err).Str("action", *payload.Action).Str("state", *payload.Review.State).
+			Str("repository", *payload.Repository.FullName).Msg("error checking status webhook existence")
 		return nil, apierrors.NewInternalServerApiError("error checking configuration existance", err)
 	}
 
 	if config == nil {
+		log.Error().Err(err).Str("action", *payload.Action).Str("state", *payload.Review.State).
+			Str("repository", *payload.Repository.FullName).Msg("configuration not found for the repository")
 		return nil, apierrors.NewNotFoundApiError("configuration not found for the repository")
 	}
+
+	log.Info().Msgf("config getted successfully for %s", *payload.Repository.FullName)
 
 	webhookType := utils.Stringify("pull_request_review")
 
@@ -257,6 +266,8 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 
 				//If the error is not a not found error, then there is a problem
 				if err != gorm.ErrRecordNotFound {
+					log.Error().Err(err).Str("action", *payload.Action).Str("state", *payload.Review.State).
+						Str("repository", *payload.Repository.FullName).Msg("error checking status webhook existence")
 					return nil, apierrors.NewNotFoundApiError("error checking status webhook existence")
 				}
 
@@ -274,16 +285,17 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 
 				//Save it into database
 				if err := s.SQL.Insert(&wh); err != nil {
+					log.Error().Err(err).Str("action", *payload.Action).Str("state", *payload.Review.State).
+						Str("repository", *payload.Repository.FullName).Msg("error saving new pull request review webhook")
 					return nil, apierrors.NewInternalServerApiError("error saving new pull request review webhook", err)
 				}
-
-				//return &wh, nil
-
 			} else { //If webhook already exists then return it
 				//Returns the saved webhook
 				return &wh, nil
 			}
 		} else {
+			log.Info().Str("action", *payload.Action).Str("state", *payload.Review.State).
+				Str("repository", *payload.Repository.FullName).Msg("pull request review state not supported yet")
 			return nil, apierrors.NewBadRequestApiError("pull request review state not supported yet")
 		}
 
@@ -292,27 +304,42 @@ func (s *Webhook) ProcessPullRequestReviewWebhook(payload *webhook.PullRequestRe
 		if err := s.SQL.GetBy(&wh, "id = ?", &prWebhookID); err != nil {
 			//If the error is not a not found error, then there is a problem
 			if err == gorm.ErrRecordNotFound {
+				log.Error().Err(err).Str("action", *payload.Action).Str("state", *payload.Review.State).
+					Str("repository", *payload.Repository.FullName).Msg("webhook not found")
 				return nil, apierrors.NewNotFoundApiError("webhook not found")
 			} else {
+				log.Error().Err(err).Str("action", *payload.Action).Str("state", *payload.Review.State).
+					Str("repository", *payload.Repository.FullName).
+					Msg("error checking status webhook existence")
 				return nil, apierrors.NewNotFoundApiError("error checking status webhook existence")
 			}
 
 		} else {
 			//Delete the value from DB
 			if err := s.SQL.Delete(&wh); err != nil {
-				return nil, apierrors.NewInternalServerApiError("error saving new pull request review webhook", err)
+				log.Error().Err(err).Str("action", *payload.Action).Str("state", *payload.Review.State).
+					Str("repository", *payload.Repository.FullName).
+					Msg("error deleting pull request review webhook")
+				return nil, apierrors.NewInternalServerApiError("error deleting pull request review webhook", err)
 			}
 		}
 	default:
+		log.Info().Msgf("pull request review webhook - action: %s", *payload.Action)
 		return nil, apierrors.NewBadRequestApiError("action not supported yet")
 	}
 
 	//We create the payload necessary to process the build
 	buildPayload := s.BuildStatusWebhookPayload(*payload)
-	build, _ := s.BuildService.ProcessBuild(config, buildPayload)
+	build, buildErr := s.BuildService.ProcessBuild(config, buildPayload)
+
+	if buildErr != nil {
+		log.Error().Err(err).Str("action", *payload.Action).Str("state", *payload.Review.State).
+			Str("repository", *payload.Repository.FullName).Msg("error checking status webhook existence")
+	}
 
 	if build != nil {
-		//TODO: Logear
+		log.Info().Str("sha", *build.Sha).Str("type", *build.Type).Str("build", *build.GithubURL).
+			Str("repository", *payload.Repository.FullName).Msg("build created successfully")
 	}
 
 	return &wh, nil

@@ -10,6 +10,7 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/utils"
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/jinzhu/gorm"
+	"github.com/rs/zerolog/log"
 	"strconv"
 	"strings"
 	"time"
@@ -108,7 +109,8 @@ func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Stat
 		sendIssuecommentErr := s.GithubClient.CreateIssueComment(config, pRequest, issueCommentBody)
 
 		if sendIssuecommentErr != nil {
-			//TODO: Logear
+			log.Error().Err(sendIssuecommentErr).Str("sha", *payload.Sha).
+				Str("repository", *payload.Repository.FullName).Msg("error creating new issue comment")
 		}
 
 		return build, nil
