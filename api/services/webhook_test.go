@@ -108,6 +108,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 	buildOK.Patch = 0
 	buildOK.Branch = utils.Stringify("feature/lalala")
 	buildOK.Type = utils.Stringify("test")
+	buildOK.GithubURL = utils.Stringify("v0.1.0")
 
 	tests := []struct {
 		name    string
@@ -203,7 +204,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 				errorDelete: nil,
 				config:      &cicdConfigOK,
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "test - action: dismissed - error getting webhook from db - not delete",

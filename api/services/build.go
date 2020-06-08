@@ -10,6 +10,7 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/utils"
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/jinzhu/gorm"
+	"github.com/rs/zerolog/log"
 	"strconv"
 	"strings"
 	"time"
@@ -19,7 +20,7 @@ const (
 	initialMajor       = 0
 	initialMinor       = 0
 	initialPatch       = 0
-	initialBuildStatus = "pending"
+	initialBuildStatus = "finished"
 	initialBuildType   = "productive"
 	automaticBuildBody = "release created automatically by hbalmes/ci_cd-api"
 )
@@ -108,7 +109,8 @@ func (s *Build) ProcessBuild(config *models.Configuration, payload *webhook.Stat
 		sendIssuecommentErr := s.GithubClient.CreateIssueComment(config, pRequest, issueCommentBody)
 
 		if sendIssuecommentErr != nil {
-			//TODO: Logear
+			log.Error().Err(sendIssuecommentErr).Str("sha", *payload.Sha).
+				Str("repository", *payload.Repository.FullName).Msg("error creating new issue comment")
 		}
 
 		return build, nil
@@ -340,10 +342,10 @@ func (s *Build) GetIssueCommentBody(build *models.Build) string {
 		break
 	}
 
-	buildID := strconv.Itoa(int(build.ID))
-
 	body = "# Build report \n" + "\n" +
-		"> **Status:** _" + fmt.Sprintf("[%s](http://url/%s/build)_  %s", *build.Status, *build.RepositoryName, emoji) + "\n" +
-		"**Version:**" + fmt.Sprintf("[%d.%d.%d](http://url/%s/builds/%s)", build.Major, build.Minor, build.Patch, *build.RepositoryName, buildID)
+		"> **Status:** _" + fmt.Sprintf("**%s** %s", *build.Status, emoji) + "\n" +
+		"**Version:**" + fmt.Sprintf("[%s](https://github.com/%s/releases/tag/%s)", *build.GithubURL, *build.RepositoryName, *build.GithubURL) +
+		"> **ID:**" + fmt.Sprintf("%s", *build.GithubID)
 	return body
 }
+

@@ -3,8 +3,6 @@ package apierrors
 import (
 	"fmt"
 	"net/http"
-
-	json "github.com/json-iterator/go"
 )
 
 type CauseList []interface{}
@@ -56,20 +54,8 @@ func NewNotFoundApiError(message string) ApiError {
 	return apiErr{message, "not_found", http.StatusNotFound, CauseList{}}
 }
 
-func NewTooManyRequestsError(message string) ApiError {
-	return apiErr{message, "too_many_requests", http.StatusTooManyRequests, CauseList{}}
-}
-
 func NewBadRequestApiError(message string) ApiError {
 	return apiErr{message, "bad_request", http.StatusBadRequest, CauseList{}}
-}
-
-func NewValidationApiError(message string, error string, cause CauseList) ApiError {
-	return apiErr{message, error, http.StatusBadRequest, cause}
-}
-
-func NewMethodNotAllowedApiError() ApiError {
-	return apiErr{"Method not allowed", "method_not_allowed", http.StatusMethodNotAllowed, CauseList{}}
 }
 
 func NewInternalServerApiError(message string, err error) ApiError {
@@ -80,29 +66,6 @@ func NewInternalServerApiError(message string, err error) ApiError {
 	return apiErr{message, "internal_server_error", http.StatusInternalServerError, cause}
 }
 
-func NewForbiddenApiError(message string) ApiError {
-	return apiErr{message, "forbidden", http.StatusForbidden, CauseList{}}
-}
-
-func NewUnauthorizedApiError(message string) ApiError {
-	return apiErr{message, "unauthorized_scopes", http.StatusUnauthorized, CauseList{}}
-}
-
 func NewConflictApiError(id string) ApiError {
 	return apiErr{"Can't update " + id + " due to a conflict error", "conflict_error", http.StatusConflict, CauseList{}}
-}
-
-func NewApiErrorFromBytes(data []byte) (ApiError, error) {
-	err := apiErr{}
-	e := json.Unmarshal(data, &err)
-	return err, e
-}
-
-func NewCustomStatusApiErrorFromBytes(data []byte, status int) (ApiError, error) {
-	var apierr apiErr
-	err := json.Unmarshal(data, &apierr)
-	if apierr.ErrorStatus == 0 {
-		apierr.ErrorStatus = status
-	}
-	return apierr, err
 }
