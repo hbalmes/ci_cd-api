@@ -1086,7 +1086,7 @@ func TestBuild_getIssueCommentBody(t *testing.T) {
 				build: &pendingBuild,
 			},
 			expects: expects{
-				bodyResult: "# Build report \n\n> **Status:** _**pending** :clock8:\n**Version:**[v0.1.0](https://github.com/hbalmes/ci-cd_api/releases/tag/v0.1.0)> **ID:**123456",
+				bodyResult: "# Build report \n\n> **Status:** **pending** :clock8:\n**Version:**[v0.1.0](https://github.com/hbalmes/ci-cd_api/releases/tag/v0.1.0)",
 			},
 		},
 		{
@@ -1095,7 +1095,7 @@ func TestBuild_getIssueCommentBody(t *testing.T) {
 				build: &finishedBuild,
 			},
 			expects: expects{
-				bodyResult: "# Build report \n\n> **Status:** _**finished** :white_check_mark:\n**Version:**[v0.1.0](https://github.com/hbalmes/ci-cd_api/releases/tag/v0.1.0)> **ID:**123456",
+				bodyResult: "# Build report \n\n> **Status:** **finished** :white_check_mark:\n**Version:**[v0.1.0](https://github.com/hbalmes/ci-cd_api/releases/tag/v0.1.0)",
 			},
 		},
 		{
@@ -1104,7 +1104,7 @@ func TestBuild_getIssueCommentBody(t *testing.T) {
 				build: &errorBuild,
 			},
 			expects: expects{
-				bodyResult: "# Build report \n\n> **Status:** _**error** :red_circle:\n**Version:**[v0.1.0](https://github.com/hbalmes/ci-cd_api/releases/tag/v0.1.0)> **ID:**123456",
+				bodyResult: "# Build report \n\n> **Status:** **error** :red_circle:\n**Version:**[v0.1.0](https://github.com/hbalmes/ci-cd_api/releases/tag/v0.1.0)",
 			},
 		},
 	}
