@@ -343,9 +343,8 @@ func (s *Build) GetIssueCommentBody(build *models.Build) string {
 	}
 
 	body = "# Build report \n" + "\n" +
-		"> **Status:** _" + fmt.Sprintf("**%s** %s", *build.Status, emoji) + "\n" +
-		"**Version:**" + fmt.Sprintf("[%s](https://github.com/%s/releases/tag/%s)", *build.GithubURL, *build.RepositoryName, *build.GithubURL) +
-		"> **ID:**" + fmt.Sprintf("%s", *build.GithubURL)
+		"> **Status:** " + fmt.Sprintf("**%s** %s", *build.Status, emoji) + "\n" +
+		"**Version:**" + fmt.Sprintf("[%s](https://github.com/%s/releases/tag/%s)", *build.GithubURL, *build.RepositoryName, *build.GithubURL)
 	return body
 }
 
