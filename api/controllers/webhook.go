@@ -32,7 +32,6 @@ func NewWebhookController(sql storage.SQLStorage) *Webhook {
 //	400BadRequest in case of an error parsing the request payload
 //	500InternalServerError in case of an internal error procesing the creation
 func (c *Webhook) CreateWebhook(ginContext *gin.Context) {
-
 	var errorStatusCode int
 	//Check if 'X-Github-Event' header is present
 	if webhookEvent, deliveryID := getGetGithubHeaders(ginContext); webhookEvent != "" && deliveryID != "" {

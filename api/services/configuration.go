@@ -9,6 +9,7 @@ import (
 	"github.com/hbalmes/ci_cd-api/api/utils"
 	"github.com/hbalmes/ci_cd-api/api/utils/apierrors"
 	"github.com/jinzhu/gorm"
+	"os"
 )
 
 //ConfigurationService is an interface which represents the ConfigurationService for testing purpose.
@@ -73,13 +74,28 @@ func (s *Configuration) Create(r *models.PostRequestPayload) (*models.Configurat
 //Returns an error if the config is not found.
 func (s *Configuration) Get(id string) (*models.Configuration, error) {
 	var cf models.Configuration
+	//To wakeup the db.
+	scope := os.Getenv("SCOPE")
+	if scope == "production" {
+		for i := 1; i < 5; i++ {
+			if err := s.SQL.GetBy(&cf, "id = ?", "hbalmes/ci_cd-api"); err != nil {
+				if err != gorm.ErrRecordNotFound {
+					continue
+				}
+			}
+			break
+		}
+	}
+
 	if err := s.SQL.GetBy(&cf, "id = ?", id); err != nil {
 		if err != gorm.ErrRecordNotFound {
 			return nil, errors.New("error checking configuration existance")
 		}
 		return nil, err
 	}
+
 	return &cf, nil
+
 }
 
 //Update modifies a configuration.

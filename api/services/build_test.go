@@ -1048,6 +1048,8 @@ func TestBuild_getIssueCommentBody(t *testing.T) {
 	pendingBuild.Minor = 1
 	pendingBuild.Patch = 0
 	pendingBuild.ID = 0
+	pendingBuild.GithubURL = utils.Stringify("v0.1.0")
+	pendingBuild.GithubID = utils.Stringify("123456")
 
 	var finishedBuild models.Build
 	finishedBuild.Sha = utils.Stringify("123456789asdfghjkqwertyu")
@@ -1058,6 +1060,8 @@ func TestBuild_getIssueCommentBody(t *testing.T) {
 	finishedBuild.Minor = 1
 	finishedBuild.Patch = 0
 	finishedBuild.ID = 0
+	finishedBuild.GithubURL = utils.Stringify("v0.1.0")
+	finishedBuild.GithubID = utils.Stringify("123456")
 
 	var errorBuild models.Build
 	errorBuild.Sha = utils.Stringify("123456789asdfghjkqwertyu")
@@ -1068,6 +1072,8 @@ func TestBuild_getIssueCommentBody(t *testing.T) {
 	errorBuild.Minor = 1
 	errorBuild.Patch = 0
 	errorBuild.ID = 0
+	errorBuild.GithubURL = utils.Stringify("v0.1.0")
+	errorBuild.GithubID = utils.Stringify("123456")
 
 	tests := []struct {
 		name    string
@@ -1080,7 +1086,7 @@ func TestBuild_getIssueCommentBody(t *testing.T) {
 				build: &pendingBuild,
 			},
 			expects: expects{
-				bodyResult: "# Build report \n\n> **Status:** _[pending](http://url/hbalmes/ci-cd_api/build)_  :clock8:\n**Version:**[0.1.0](http://url/hbalmes/ci-cd_api/builds/0)",
+				bodyResult: "# Build report \n\n> **Status:** **pending** :clock8:\n**Version:**[v0.1.0](https://github.com/hbalmes/ci-cd_api/releases/tag/v0.1.0)",
 			},
 		},
 		{
@@ -1089,7 +1095,7 @@ func TestBuild_getIssueCommentBody(t *testing.T) {
 				build: &finishedBuild,
 			},
 			expects: expects{
-				bodyResult: "# Build report \n\n> **Status:** _[finished](http://url/hbalmes/ci-cd_api/build)_  :white_check_mark:\n**Version:**[0.1.0](http://url/hbalmes/ci-cd_api/builds/0)",
+				bodyResult: "# Build report \n\n> **Status:** **finished** :white_check_mark:\n**Version:**[v0.1.0](https://github.com/hbalmes/ci-cd_api/releases/tag/v0.1.0)",
 			},
 		},
 		{
@@ -1098,7 +1104,7 @@ func TestBuild_getIssueCommentBody(t *testing.T) {
 				build: &errorBuild,
 			},
 			expects: expects{
-				bodyResult: "# Build report \n\n> **Status:** _[error](http://url/hbalmes/ci-cd_api/build)_  :red_circle:\n**Version:**[0.1.0](http://url/hbalmes/ci-cd_api/builds/0)",
+				bodyResult: "# Build report \n\n> **Status:** **error** :red_circle:\n**Version:**[v0.1.0](https://github.com/hbalmes/ci-cd_api/releases/tag/v0.1.0)",
 			},
 		},
 	}

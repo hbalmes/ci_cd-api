@@ -8,8 +8,8 @@ import (
 func GetWorkflowConfiguration(configuration *models.Configuration) *models.WorkflowConfig {
 	var workflowConfig models.WorkflowConfig
 
-	switch configuration.WorkflowType {
-	case utils.Stringify("gitflow"):
+	switch *configuration.WorkflowType {
+	case "gitflow":
 		workflowConfig = *GetGitflowConfig(configuration)
 	default:
 		workflowConfig = *GetGitflowConfig(configuration)
