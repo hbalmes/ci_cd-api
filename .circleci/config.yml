@@ -25,6 +25,7 @@ jobs: # basic units of work in a run
 
           # store the results of our tests in the $TEST_RESULTS directory
           command: |
+            sudo apt update && sudo apt install ca-certificates libgnutls30 -y
             cd api
             go test -race ./... -coverprofile=coverage.out -covermode=atomic
             cat coverage.out >> coverage.txt
