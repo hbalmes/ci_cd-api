@@ -1,15 +1,15 @@
 version: '3.7'
 services:
-  app:
-    container_name: api
-    image: ci-cd-api:0.1.1
-    ports:
-      - 8080:8080
-    restart: on-failure
-    depends_on:
-      - mysql
-    networks:
-      - fullstack
+#  app:
+#    container_name: api
+#    image: ci-cd-api:0.1.1
+#    ports:
+#      - 8080:8080
+#    restart: on-failure
+#    depends_on:
+#      - mysql
+#    networks:
+#      - fullstack
 
   mysql:
     container_name: configurations
@@ -23,11 +23,11 @@ services:
       test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
       timeout: 20s
       retries: 10
-    networks:
-      - fullstack
+#    networks:
+#      - fullstack
 
 
 # Networks to be created to facilitate communication between containers
-networks:
-  fullstack:
-    driver: bridge
+#networks:
+#  fullstack:
+#    driver: bridge
