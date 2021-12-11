@@ -130,7 +130,7 @@ func TestWebhook_ProcessPullRequestReviewWebhook(t *testing.T) {
 				config: &cicdConfigOK,
 				build:  &buildOK,
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name: "test - action: submitted, review approved - error Getting webhook from DB",
