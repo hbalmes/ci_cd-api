@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/coreos/go-semver v0.3.0
-	github.com/gin-gonic/gin v1.7.0
+	github.com/gin-gonic/gin v1.7.7
 	github.com/golang/mock v1.4.3
 	github.com/jinzhu/gorm v1.9.12
 	github.com/kr/text v0.2.0 // indirect
